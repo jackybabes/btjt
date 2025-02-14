@@ -7,10 +7,7 @@ import (
 )
 
 func readTorrent(filename string) []byte {
-	data, err := os.ReadFile(filename) // Read the file as a byte slice
-	if err != nil {
-		log.Fatalln("Error reading file:", err)
-	}
+	data, _ := os.ReadFile(filename)
 	return data
 }
 
@@ -160,20 +157,7 @@ func getDict(data []byte) (map[string]interface{}, []byte) {
 	return dictData, data[1:]
 }
 
-// func popFirst(slice []byte) (byte, []byte) {
-// 	return slice[0], slice[1:]
-// }
-
 func main() {
-
-	// torrentFile := readTorrent("./test.torrent")
-	// log.Println(string(torrentFile))
-	// log.Println(torrentFile)
-
-	// a, b := getBytes(torrentFile)
-
-	// _, _ = a, b
-
 	torrentFile := readTorrent("./sample.torrent")
 	log.Printf("%v character file", len(torrentFile))
 	// log.Println(string(torrentFile))
@@ -205,16 +189,4 @@ func main() {
 	}
 
 	log.Println(torrentData)
-
-	// if nextByte == 'd' {
-	// 	log.Println("Dict")
-	// 	torrentData := make(map[string]interface{})
-	// } else {
-	// 	log.Fatalln("Not dict")
-	// }
-
-	// for _, b := range torrentFile[1:] {
-
-	// }
-
 }

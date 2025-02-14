@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -11,180 +14,151 @@ func readTorrent(filename string) []byte {
 	return data
 }
 
-type BencodeType int
-
-const (
-	ByteType BencodeType = iota
-	ListType
-	DictType
-	IntType
-	NoneType
-)
-
-func checkNextDataStructure(b byte) BencodeType {
-	switch b {
-	case 'd':
-		return DictType
-	case 'i':
-		return IntType
-	case 'l':
-		return ListType
-	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		return ByteType
-	default:
-		return NoneType
-	}
-}
-
 func bytesToInt(b []byte) int {
 	s := string(b)
 	i, _ := strconv.Atoi(s)
 	return i
 }
 
-func getBytes(data []byte) ([]byte, []byte) {
-
+func getBytes(reader *bufio.Reader) []byte {
 	var lengthBytes []byte
-	for _, c := range data {
-		if c == ':' {
+	for {
+		b, _ := reader.ReadByte()
+		if b == ':' {
 			break
 		}
-		lengthBytes = append(lengthBytes, c)
+		lengthBytes = append(lengthBytes, b)
 	}
+
 	length := bytesToInt(lengthBytes)
-	bytes := data[len(lengthBytes)+1 : len(lengthBytes)+1+length]
+	bytesBuffer := make([]byte, length)
+	_, _ = reader.Read(bytesBuffer)
 
-	// log.Printf("%v, %v", length, string(bytes))
-
-	data = data[len(lengthBytes)+1+length:]
-
-	return bytes, data
-
+	// log.Printf("%v, %v", length, string(bytesBuffer))
+	return bytesBuffer
 }
 
-func getInt(data []byte) (int, []byte) {
+func getInt(reader *bufio.Reader) int {
 	var intBytes []byte
-	for _, b := range data[1:] {
+	for {
+		b, _ := reader.ReadByte()
+		if b == 'i' {
+			continue
+		}
 		if b == 'e' {
 			break
 		}
 		intBytes = append(intBytes, b)
 	}
 	i := bytesToInt(intBytes)
-	data = data[2+len(intBytes):]
-	return i, data
+	return i
 }
 
-func getList(data []byte) ([]interface{}, []byte) {
+func getList(reader *bufio.Reader) []interface{} {
 	var listData []interface{}
-	data = data[1:]
+
+	_, _ = reader.ReadByte()
 	for {
-		nextByte := data[0]
-		nextDataStructure := checkNextDataStructure(nextByte)
-		if nextDataStructure == ByteType {
-			var bytes []byte
-			bytes, data = getBytes(data)
-			listData = append(listData, bytes)
-		} else if nextDataStructure == IntType {
-			var interger int
-			interger, data = getInt(data)
-			listData = append(listData, interger)
-		} else if nextDataStructure == ListType {
-			var list []interface{}
-			list, data = getList(data)
-			listData = append(listData, list)
-		} else if nextDataStructure == DictType {
-			var dict map[string]interface{}
-			dict, data = getDict(data)
-			listData = append(listData, dict)
-		} else {
-			panic("next data undefined in list")
-		}
-		if data[0] == 'e' {
-			break
+		nextBytes, _ := reader.Peek(1)
+		nextByte := nextBytes[0]
+
+		switch nextByte {
+		case 'i':
+			// IntType
+			listData = append(listData, getInt(reader))
+		case 'l':
+			// ListType
+			listData = append(listData, getList(reader))
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			// ByteType
+			listData = append(listData, getBytes(reader))
+		case 'd':
+			// DictType
+			listData = append(listData, getDict(reader))
+		case 'e':
+			_, _ = reader.ReadByte()
+			return listData
 		}
 	}
-	return listData, data[1:]
 }
 
-func getDict(data []byte) (map[string]interface{}, []byte) {
-
+func getDict(reader *bufio.Reader) map[string]interface{} {
 	dictData := make(map[string]interface{})
+	_, _ = reader.ReadByte()
 
-	data = data[1:]
 	for {
 		// get key
-		nextByte := data[0]
-		nextDataStructure := checkNextDataStructure(nextByte)
-		var key string
+		nextBytes, _ := reader.Peek(1)
+		nextByte := nextBytes[0]
 
-		if nextDataStructure == ByteType {
-			var bytes []byte
-			bytes, data = getBytes(data)
-			key = string(bytes)
-		} else {
-			panic("Not key")
+		if nextByte == 'e' {
+			_, _ = reader.ReadByte()
+			return dictData
 		}
+
+		var key string
+		switch nextByte {
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			// ByteType
+			key = string(getBytes(reader))
+		default:
+			log.Fatalln("key must be string")
+		}
+
 		// get value
-		nextByte = data[0]
-		nextDataStructure = checkNextDataStructure(nextByte)
+		nextBytes, _ = reader.Peek(1)
+		nextByte = nextBytes[0]
 
 		var value interface{}
 
-		if nextDataStructure == ByteType {
-			var bytes []byte
-			bytes, data = getBytes(data)
-			value = bytes
-		} else if nextDataStructure == IntType {
-			var interger int
-			interger, data = getInt(data)
-			value = interger
-		} else if nextDataStructure == ListType {
-			value, data = getList(data)
-		} else if nextDataStructure == DictType {
-			value, data = getDict(data)
-		} else {
-			panic("Could not find value")
+		switch nextByte {
+		case 'i':
+			// IntType
+			value = getInt(reader)
+		case 'l':
+			// ListType
+			value = getList(reader)
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			// ByteType
+			value = getBytes(reader)
+		case 'd':
+			// DictType
+			value = getDict(reader)
 		}
-		// store in dict
 		dictData[key] = value
 
-		if data[0] == 'e' {
-			break
-		}
-
 	}
-	return dictData, data[1:]
 }
 
 func main() {
-	torrentFile := readTorrent("./sample.torrent")
+	torrentFile := readTorrent("./test.torrent")
 	log.Printf("%v character file", len(torrentFile))
 	// log.Println(string(torrentFile))
 
-	data := torrentFile
+	reader := bufio.NewReader(bytes.NewReader(torrentFile))
 
 	var torrentData []interface{}
 
-	for len(data) > 0 {
-		nextByte := data[0]
-		nextDataStructure := checkNextDataStructure(nextByte)
-		if nextDataStructure == ByteType {
-			var bytes []byte
-			bytes, data = getBytes(data)
-			torrentData = append(torrentData, bytes)
-		} else if nextDataStructure == IntType {
-			var interger int
-			interger, data = getInt(data)
-			torrentData = append(torrentData, interger)
-		} else if nextDataStructure == ListType {
-			var list []interface{}
-			list, data = getList(data)
-			torrentData = append(torrentData, list)
-		} else if nextDataStructure == DictType {
-			var dict map[string]interface{}
-			dict, data = getDict(data)
-			torrentData = append(torrentData, dict)
+	for {
+		nextBytes, _ := reader.Peek(1)
+		nextByte := nextBytes[0]
+
+		switch nextByte {
+		case 'i':
+			// IntType
+			torrentData = append(torrentData, getInt(reader))
+		case 'l':
+			// ListType
+			torrentData = append(torrentData, getList(reader))
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			// ByteType
+			torrentData = append(torrentData, getBytes(reader))
+		case 'd':
+			torrentData = append(torrentData, getDict(reader))
+		}
+
+		if _, err := reader.Peek(1); err == io.EOF {
+			break
 		}
 	}
 

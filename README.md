@@ -1,13 +1,17 @@
-##Info Hash##
+## Info Hash
 
-Make sure you don't have a newline at the end of the file, you may also want to make sure it ends with an 'e'.
+Need to refactor the code for getting the info hash
+I think best way might be to reencode the info section and sha but lazy
+
+```
 The info-hash of a torrent file is the SHA-1 hash of the info-section (in bencoded form) from the .torrent file. Essentially you need to decode the file (it's bencoded) and remember the byte offsets where the content of the value associated with the "info" key begins and end. That's the range of bytes you need to hash.
 For example, if this is the torrent file:
 d4:infod6:pieces20:....................4:name4:test12:piece lengthi1024ee8:announce27:http://tracker.com/announcee
 You wan to just hash this section:
 d6:pieces20:....................4:name4:test12:piece lengthi1024ee
+```
 
-##Check Vailid UTF-8 for strings##
+## Check Vailid UTF-8 for strings
 
 ```
 func main() {

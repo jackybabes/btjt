@@ -131,11 +131,13 @@ func getDict(reader *bufio.Reader) map[string]interface{} {
 }
 
 func main() {
-	torrentFile := readTorrent("./test.torrent")
+	torrentFile := readTorrent("./ubuntu.torrent")
 	log.Printf("%v character file", len(torrentFile))
 	// log.Println(string(torrentFile))
 
-	reader := bufio.NewReader(bytes.NewReader(torrentFile))
+	readerSize := 1024 * 1024 // 1MB Max Files Size
+
+	reader := bufio.NewReaderSize(bytes.NewReader(torrentFile), readerSize)
 
 	var torrentData []interface{}
 

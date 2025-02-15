@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha1"
 	"io"
 	"log"
 	"os"
@@ -93,6 +94,10 @@ func getDict(reader *bufio.Reader) map[string]interface{} {
 
 		if nextByte == 'e' {
 			_, _ = reader.ReadByte()
+			if infoSection {
+				infoSectionEnd = bufferLength - reader.Buffered()
+				infoSection = false
+			}
 			return dictData
 		}
 
@@ -103,6 +108,11 @@ func getDict(reader *bufio.Reader) map[string]interface{} {
 			key = string(getBytes(reader))
 		default:
 			log.Fatalln("key must be string")
+		}
+
+		if key == "info" {
+			infoSectionStart = bufferLength - reader.Buffered()
+			infoSection, infoSectionExist = true, true
 		}
 
 		// get value
@@ -126,21 +136,17 @@ func getDict(reader *bufio.Reader) map[string]interface{} {
 			value = getDict(reader)
 		}
 		dictData[key] = value
-
 	}
 }
 
-func main() {
-	torrentFile := readTorrent("./ubuntu.torrent")
-	log.Printf("%v character file", len(torrentFile))
-	// log.Println(string(torrentFile))
-
+func bencode_decode(data []byte) []interface{} {
 	readerSize := 1024 * 1024 // 1MB Max Files Size
+	reader := bufio.NewReaderSize(bytes.NewReader(data), readerSize)
 
-	reader := bufio.NewReaderSize(bytes.NewReader(torrentFile), readerSize)
+	_, _ = reader.Peek(1)
+	bufferLength = reader.Buffered()
 
-	var torrentData []interface{}
-
+	var decodedData []interface{}
 	for {
 		nextBytes, _ := reader.Peek(1)
 		nextByte := nextBytes[0]
@@ -148,15 +154,15 @@ func main() {
 		switch nextByte {
 		case 'i':
 			// IntType
-			torrentData = append(torrentData, getInt(reader))
+			decodedData = append(decodedData, getInt(reader))
 		case 'l':
 			// ListType
-			torrentData = append(torrentData, getList(reader))
+			decodedData = append(decodedData, getList(reader))
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			// ByteType
-			torrentData = append(torrentData, getBytes(reader))
+			decodedData = append(decodedData, getBytes(reader))
 		case 'd':
-			torrentData = append(torrentData, getDict(reader))
+			decodedData = append(decodedData, getDict(reader))
 		}
 
 		if _, err := reader.Peek(1); err == io.EOF {
@@ -164,5 +170,28 @@ func main() {
 		}
 	}
 
-	log.Println(torrentData)
+	return decodedData
+
+}
+
+var infoSection, infoSectionExist bool
+var infoSectionStart, infoSectionEnd, bufferLength int
+
+func main() {
+	torrentFile := readTorrent("./sample.torrent")
+	log.Printf("%v character file", len(torrentFile))
+	// log.Println(string(torrentFile))
+
+	dataFromFile := bencode_decode(torrentFile)
+
+	// check data is from valid torrent file?
+
+	log.Println(dataFromFile)
+
+	if infoSectionExist {
+		log.Printf("info section start: %v, end: %v", infoSectionStart, infoSectionEnd)
+		infoSectionBytes := torrentFile[infoSectionStart:infoSectionEnd]
+		hash := sha1.Sum(infoSectionBytes)
+		log.Printf("%x", hash)
+	}
 }

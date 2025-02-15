@@ -228,7 +228,7 @@ func checkSingleMapInside(i []interface{}) bool {
 }
 
 func main() {
-	torrentFile := readTorrent("./sample.torrent")
+	torrentFile := readTorrent("./small.torrent")
 	log.Printf("%v character file", len(torrentFile))
 	// log.Println(string(torrentFile))
 
@@ -254,6 +254,18 @@ func main() {
 	torrent := loadTorrentIntoStruct(torrentInterface)
 
 	log.Println(torrent)
+
+	numberOfPieces := (torrent.Info.Length / torrent.Info.PieceLength) + 1
+	log.Println(numberOfPieces)
+
+	var pieceHashes [][]byte
+	pieceBuffer := torrent.Info.Pieces
+	for range numberOfPieces {
+		pieceHashes = append(pieceHashes, pieceBuffer[:20])
+		pieceBuffer = pieceBuffer[20:]
+	}
+	log.Println(pieceBuffer)
+	log.Println(pieceHashes)
 
 	log.Println("Fin")
 

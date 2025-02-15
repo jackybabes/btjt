@@ -2,7 +2,7 @@ package main
 
 type Torrent struct {
 	Announce     string
-	CreationDate int64
+	CreationDate int
 	Comment      string
 	CreatedBy    string
 	Info         TorrentInfo
@@ -11,9 +11,10 @@ type Torrent struct {
 type TorrentInfo struct {
 	Name        string
 	PieceLength int
-	Pieces      string
+	Pieces      []byte
 	Length      int
 	Files       []File
+	Private     int
 }
 
 type File struct {

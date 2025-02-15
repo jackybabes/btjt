@@ -178,23 +178,43 @@ func bencode_decode(data []byte) []interface{} {
 var infoSection, infoSectionExist bool
 var infoSectionStart, infoSectionEnd, bufferLength int
 
-func loadTorrentIntoStruct(data map[string]interface{}) (Torrent, bool) {
+func loadTorrentIntoStruct(data map[string]interface{}) Torrent {
 	torrent := Torrent{}
 	_ = data
 
-	if announce, ok := data["announce"].([]byte); ok {
-		torrent.Announce = string(announce)
+	if value, ok := data["announce"].([]byte); ok {
+		torrent.Announce = string(value)
 	}
 
-	if creationDate, ok := data["creation date"].(int); ok {
-		torrent.CreationDate = int64(creationDate)
+	if value, ok := data["creation date"].(int); ok {
+		torrent.CreationDate = value
 	}
 
 	if info, ok := data["info"].(map[string]interface{}); ok {
 
+		if value, ok := info["length"].(int); ok {
+			torrent.Info.Length = value
+		}
+
+		if value, ok := info["name"].([]byte); ok {
+			torrent.Info.Name = string(value)
+		}
+
+		if value, ok := info["piece length"].(int); ok {
+			torrent.Info.PieceLength = value
+		}
+
+		if value, ok := info["pieces"].([]byte); ok {
+			torrent.Info.Pieces = value
+		}
+
+		if value, ok := info["private"].(int); ok {
+			torrent.Info.Private = value
+		}
+
 	}
 
-	return torrent, false
+	return torrent
 
 }
 
@@ -231,10 +251,7 @@ func main() {
 
 	torrentInterface := dataFromFile[0].(map[string]interface{})
 
-	torrent, err := loadTorrentIntoStruct(torrentInterface)
-	if err {
-		log.Fatalln("Could not load map into struct")
-	}
+	torrent := loadTorrentIntoStruct(torrentInterface)
 
 	log.Println(torrent)
 

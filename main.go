@@ -2,44 +2,12 @@ package main
 
 import (
 	"crypto/sha1"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"net/url"
 	"strconv"
 )
-
-func getClient(proxy bool) *http.Client {
-	// Proxy through burp
-	// Define the Burp Suite proxy URL
-	proxyURL, err := url.Parse("http://127.0.0.1:8080")
-	if err != nil {
-		panic(err)
-	}
-
-	// Create a custom Transport with the proxy
-	transport := &http.Transport{
-		Proxy: http.ProxyURL(proxyURL),
-		// Skip TLS verification (needed for HTTPS if Burp is using its cert)
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-
-	var client *http.Client
-
-	if proxy {
-		// Create an HTTP client with the custom transport
-		client = &http.Client{
-			Transport: transport,
-		}
-	} else {
-		client = &http.Client{}
-	}
-
-	return client
-
-}
 
 func main() {
 	PORT := 6881

@@ -22,3 +22,5 @@ func main() {
     fmt.Println("Invalid UTF-8:", utf8.Valid(invalidUTF8)) // Output: false
 }
 ```
+
+"https://academictorrents.com/announce.php?compact=1&downloaded=0&info_hash=c%2520%2590%25228c%25eb%25e43%25f0%25e5%2598%25b4%2581%25968%25e4%25d0%2504p&left=68554&peer_id=jtbtjtbtjtbtjtbtjtbt&port=6881&uploaded=0"

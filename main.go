@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha1"
+	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -144,7 +146,7 @@ func getDict(reader *bufio.Reader) map[string]interface{} {
 }
 
 func bencode_decode(data []byte) []interface{} {
-	readerSize := 1024 * 1024 // 1MB Max Files Size
+	readerSize := 1024 * 1024 * 4 // 4MB Max Files Size
 	reader := bufio.NewReaderSize(bytes.NewReader(data), readerSize)
 
 	_, _ = reader.Peek(1)
@@ -232,15 +234,33 @@ func checkSingleMapInside(i []interface{}) bool {
 }
 
 func hashURLEncode(h [20]byte) string {
+	// Note that all binary data in the URL (particularly info_hash and peer_id) must be properly escaped.
+	// This means any byte not in the set 0-9, a-z, A-Z, '.', '-', '_' and '~', must be encoded using the "%nn" format,
+	// where nn is the hexadecimal value of the byte. (See RFC1738 for details.)
 
-	return "test"
+	// For a 20-byte hash of \x12\x34\x56\x78\x9a\xbc\xde\xf1\x23\x45\x67\x89\xab\xcd\xef\x12\x34\x56\x78\x9a,
+	// The right encoded form is %124Vx%9A%BC%DE%F1%23Eg%89%AB%CD%EF%124Vx%9A
+
+	var encoded string
+	for _, b := range h {
+
+		if (b >= '0' && b <= '9') || (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || b == '.' || b == '-' || b == '_' || b == '~' {
+			encoded += string(b)
+			continue
+		}
+
+		hexOfByte := hex.EncodeToString([]byte{b})
+		encoded += "%" + hexOfByte
+
+	}
+	return encoded
 }
 
 func main() {
 	PORT := 6881
 	PEER_ID := "jtbtjtbtjtbtjtbtjtbt"
 
-	torrentFile := readTorrent("./thermo.torrent")
+	torrentFile := readTorrent("./http.torrent")
 	log.Printf("%v character file", len(torrentFile))
 	// log.Println(string(torrentFile))
 
@@ -279,8 +299,28 @@ func main() {
 		pieceHashes = append(pieceHashes, pieceBuffer[:20])
 		pieceBuffer = pieceBuffer[20:]
 	}
-	log.Println(pieceHashes)
+	// log.Println(pieceHashes)
 	log.Printf("%x", pieceHashes[0])
+
+	// Proxy through burp
+
+	// Define the Burp Suite proxy URL
+	proxyURL, err := url.Parse("http://127.0.0.1:8080")
+	if err != nil {
+		panic(err)
+	}
+
+	// Create a custom Transport with the proxy
+	transport := &http.Transport{
+		Proxy: http.ProxyURL(proxyURL),
+		// Skip TLS verification (needed for HTTPS if Burp is using its cert)
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	// Create an HTTP client with the custom transport
+	client := &http.Client{
+		Transport: transport,
+	}
 
 	// Inital Http Request
 	baseURL := torrent.Announce
@@ -295,7 +335,7 @@ func main() {
 
 	finalURL := baseURL + "?" + params.Encode()
 
-	resp, err := http.Get(finalURL)
+	resp, err := client.Get(finalURL)
 	if err != nil {
 		fmt.Println("Request error:", err)
 		return
@@ -303,6 +343,7 @@ func main() {
 	defer resp.Body.Close()
 
 	// Read and print response body
+	log.Println(resp.Status)
 	body, _ := io.ReadAll(resp.Body)
 	fmt.Println("Response:", string(body))
 

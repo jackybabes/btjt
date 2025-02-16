@@ -46,7 +46,7 @@ func main() {
 	PEER_ID := "jtbtjtbtjtbtjtbtjtbt"
 	PROXY := false
 
-	torrentFile := readTorrent("./test_torrents/ubuntu.torrent")
+	torrentFile := readTorrent("./test_torrents/http.torrent")
 
 	// Check file is dict
 	if torrentFile[0] != 'd' {
@@ -106,6 +106,10 @@ func main() {
 	body, _ := io.ReadAll(resp.Body)
 	fmt.Println("Response:", string(body))
 
+	x, _ := bencode_decode([]byte(body))
+
+	// why has it go to be ipv6
+	_ = x
 	log.Println("Fin")
 
 }

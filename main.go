@@ -15,54 +15,8 @@ import (
 // var infoSection, infoSectionExist bool
 // var infoSectionStart, infoSectionEnd, bufferLength int
 
-func main() {
-	PORT := 6881
-	PEER_ID := "jtbtjtbtjtbtjtbtjtbt"
-
-	torrentFile := readTorrent("./test_torrents/http.torrent")
-
-	// Check file is dict
-	if torrentFile[0] != 'd' {
-		log.Panicln("Torrent File not dict")
-	}
-
-	// bencode decode torrent file
-	log.Printf("%v character torrent file", len(torrentFile))
-	dataFromFile, infoSectionBytes := bencode_decode(torrentFile)
-
-	// Info Section Hash - Needs Work
-	infoHash := sha1.Sum(infoSectionBytes)
-	log.Printf("%x", infoHash)
-
-	// check data is from valid torrent file?
-	// check data is one base level dict
-
-	// if !checkSingleMapInside(dataFromFile) {
-	// 	log.Fatalln("Data not in single dict")
-	// }
-
-	// torrentInterface := dataFromFile[0].(map[string]interface{})
-
-	torrent := loadTorrentIntoStruct(dataFromFile)
-
-	// log.Println(torrent)
-
-	// Pieces Calc
-	numberOfPieces := (torrent.Info.Length / torrent.Info.PieceLength) + 1
-	log.Println(numberOfPieces)
-
-	// Create slice of hashes
-	var pieceHashes [][]byte
-	pieceBuffer := torrent.Info.Pieces
-	for range numberOfPieces {
-		pieceHashes = append(pieceHashes, pieceBuffer[:20])
-		pieceBuffer = pieceBuffer[20:]
-	}
-	// log.Println(pieceHashes)
-	log.Printf("%x", pieceHashes[0])
-
+func getClient(proxy bool) *http.Client {
 	// Proxy through burp
-
 	// Define the Burp Suite proxy URL
 	proxyURL, err := url.Parse("http://127.0.0.1:8080")
 	if err != nil {
@@ -76,10 +30,58 @@ func main() {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
-	// Create an HTTP client with the custom transport
-	client := &http.Client{
-		Transport: transport,
+	var client *http.Client
+
+	if proxy {
+		// Create an HTTP client with the custom transport
+		client = &http.Client{
+			Transport: transport,
+		}
+	} else {
+		client = &http.Client{}
 	}
+
+	return client
+
+}
+
+func main() {
+	PORT := 6881
+	PEER_ID := "jtbtjtbtjtbtjtbtjtbt"
+
+	torrentFile := readTorrent("./test_torrents/httpsinglefile.torrent")
+
+	// Check file is dict
+	if torrentFile[0] != 'd' {
+		log.Panicln("Torrent File not dict")
+	}
+
+	// bencode decode torrent file
+	log.Printf("%v character torrent file", len(torrentFile))
+	dataFromFile, infoSectionBytes := bencode_decode(torrentFile)
+
+	// Info Section Hash
+	infoHash := sha1.Sum(infoSectionBytes)
+	log.Printf("%x", infoHash)
+
+	torrent := loadTorrentIntoStruct(dataFromFile)
+
+	// Pieces Calc -  broken
+	// When multiple files, length is store in file dict
+	numberOfPieces := (torrent.Info.Length / torrent.Info.PieceLength) + 1
+	log.Printf("number of pieces: %v", numberOfPieces)
+
+	// Create slice of hashes
+	var pieceHashes [][]byte
+	pieceBuffer := torrent.Info.Pieces
+	for range numberOfPieces {
+		pieceHashes = append(pieceHashes, pieceBuffer[:20])
+		pieceBuffer = pieceBuffer[20:]
+	}
+	// log.Println(pieceHashes)
+	log.Printf("%x", pieceHashes[0])
+
+	client := getClient(true)
 
 	// Inital Http Request
 	baseURL := torrent.Announce

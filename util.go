@@ -17,14 +17,14 @@ func bytesToInt(b []byte) int {
 	return i
 }
 
-func checkSingleMapInside(i []interface{}) bool {
-	if len(i) == 1 {
-		if _, ok := i[0].(map[string]interface{}); ok {
-			return true
-		}
-	}
-	return false
-}
+// func checkSingleMapInside(i []interface{}) bool {
+// 	if len(i) == 1 {
+// 		if _, ok := i[0].(map[string]interface{}); ok {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
 
 func hashURLEncode(h [20]byte) string {
 	// Note that all binary data in the URL (particularly info_hash and peer_id) must be properly escaped.

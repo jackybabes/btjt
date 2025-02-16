@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"io"
 	"log"
 )
 
@@ -41,7 +40,7 @@ func getInt(reader *bufio.Reader) int {
 	return i
 }
 
-func getList(reader *bufio.Reader) []interface{} {
+func getList(reader *bufio.Reader, infoSection *InfoSection) []interface{} {
 	var listData []interface{}
 
 	_, _ = reader.ReadByte()
@@ -55,13 +54,13 @@ func getList(reader *bufio.Reader) []interface{} {
 			listData = append(listData, getInt(reader))
 		case 'l':
 			// ListType
-			listData = append(listData, getList(reader))
+			listData = append(listData, getList(reader, infoSection))
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			// ByteType
 			listData = append(listData, getBytes(reader))
 		case 'd':
 			// DictType
-			listData = append(listData, getDict(reader))
+			listData = append(listData, getDict(reader, infoSection))
 		case 'e':
 			_, _ = reader.ReadByte()
 			return listData
@@ -69,22 +68,26 @@ func getList(reader *bufio.Reader) []interface{} {
 	}
 }
 
-func getDict(reader *bufio.Reader) map[string]interface{} {
+func getDict(reader *bufio.Reader, infoSection *InfoSection) map[string]interface{} {
 	dictData := make(map[string]interface{})
 	_, _ = reader.ReadByte()
-
+	var thisLevelInfoSection bool
 	for {
 		// get key
 		nextBytes, _ := reader.Peek(1)
 		nextByte := nextBytes[0]
 
 		if nextByte == 'e' {
-			_, _ = reader.ReadByte()
-			if infoSection {
-				// log.Println(reader.Buffered())
-				infoSectionEnd = bufferLength - reader.Buffered()
-				infoSection = false
+
+			if thisLevelInfoSection {
+				// 		// log.Println(reader.Buffered())
+				// 		infoSectionEnd = bufferLength - reader.Buffered()
+				// 		infoSection = false
+				infoSection.BufferedWhenEnd = reader.Buffered()
+				// infoSection.On = false
 			}
+			_, _ = reader.ReadByte()
+
 			return dictData
 		}
 
@@ -98,8 +101,10 @@ func getDict(reader *bufio.Reader) map[string]interface{} {
 		}
 
 		if key == "info" {
-			infoSectionStart = bufferLength - reader.Buffered()
-			infoSection, infoSectionExist = true, true
+			infoSection.BufferedWhenStart = reader.Buffered()
+			thisLevelInfoSection = true
+			// infoSectionStart = reader.Buffered()
+			// infoSection, infoSectionExist = true, true
 		}
 
 		// get value
@@ -114,49 +119,35 @@ func getDict(reader *bufio.Reader) map[string]interface{} {
 			value = getInt(reader)
 		case 'l':
 			// ListType
-			value = getList(reader)
+			value = getList(reader, infoSection)
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			// ByteType
 			value = getBytes(reader)
 		case 'd':
 			// DictType
-			value = getDict(reader)
+			value = getDict(reader, infoSection)
 		}
 		dictData[key] = value
 	}
 }
 
-func bencode_decode(data []byte) []interface{} {
-	readerSize := 1024 * 1024 * 4 // 4MB Max Files Size
-	reader := bufio.NewReaderSize(bytes.NewReader(data), readerSize)
+type InfoSection struct {
+	BufferedWhenStart int
+	BufferedWhenEnd   int
+}
 
-	_, _ = reader.Peek(1)
-	bufferLength = reader.Buffered()
+func bencode_decode(data []byte) (map[string]interface{}, []byte) {
+	// Put data into reader
+	reader := bufio.NewReaderSize(bytes.NewReader(data), len(data))
 
-	var decodedData []interface{}
-	for {
-		nextBytes, _ := reader.Peek(1)
-		nextByte := nextBytes[0]
+	var decodedData map[string]interface{}
 
-		switch nextByte {
-		case 'i':
-			// IntType
-			decodedData = append(decodedData, getInt(reader))
-		case 'l':
-			// ListType
-			decodedData = append(decodedData, getList(reader))
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			// ByteType
-			decodedData = append(decodedData, getBytes(reader))
-		case 'd':
-			decodedData = append(decodedData, getDict(reader))
-		}
+	infoSection := InfoSection{}
 
-		if _, err := reader.Peek(1); err == io.EOF {
-			break
-		}
-	}
+	decodedData = getDict(reader, &infoSection)
 
-	return decodedData
+	infoSectionBytes := data[len(data)-infoSection.BufferedWhenStart : len(data)-infoSection.BufferedWhenEnd]
+
+	return decodedData, infoSectionBytes
 
 }

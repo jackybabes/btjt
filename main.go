@@ -11,39 +11,39 @@ import (
 	"strconv"
 )
 
-// Globals for Info Section
-var infoSection, infoSectionExist bool
-var infoSectionStart, infoSectionEnd, bufferLength int
+// // Globals for Info Section
+// var infoSection, infoSectionExist bool
+// var infoSectionStart, infoSectionEnd, bufferLength int
 
 func main() {
 	PORT := 6881
 	PEER_ID := "jtbtjtbtjtbtjtbtjtbt"
 
-	torrentFile := readTorrent("./test_torrents/sample.torrent")
-	log.Printf("%v character file", len(torrentFile))
-	// log.Println(string(torrentFile))
+	torrentFile := readTorrent("./test_torrents/http.torrent")
 
-	dataFromFile := bencode_decode(torrentFile)
+	// Check file is dict
+	if torrentFile[0] != 'd' {
+		log.Panicln("Torrent File not dict")
+	}
+
+	// bencode decode torrent file
+	log.Printf("%v character torrent file", len(torrentFile))
+	dataFromFile, infoSectionBytes := bencode_decode(torrentFile)
 
 	// Info Section Hash - Needs Work
-	var infoHash [20]byte
-	if infoSectionExist {
-		log.Printf("info section start: %v, end: %v", infoSectionStart, infoSectionEnd)
-		infoSectionBytes := torrentFile[infoSectionStart:infoSectionEnd]
-		infoHash = sha1.Sum(infoSectionBytes)
-		log.Printf("%x", infoHash)
-	}
+	infoHash := sha1.Sum(infoSectionBytes)
+	log.Printf("%x", infoHash)
 
 	// check data is from valid torrent file?
 	// check data is one base level dict
 
-	if !checkSingleMapInside(dataFromFile) {
-		log.Fatalln("Data not in single dict")
-	}
+	// if !checkSingleMapInside(dataFromFile) {
+	// 	log.Fatalln("Data not in single dict")
+	// }
 
-	torrentInterface := dataFromFile[0].(map[string]interface{})
+	// torrentInterface := dataFromFile[0].(map[string]interface{})
 
-	torrent := loadTorrentIntoStruct(torrentInterface)
+	torrent := loadTorrentIntoStruct(dataFromFile)
 
 	// log.Println(torrent)
 

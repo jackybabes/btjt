@@ -11,10 +11,6 @@ import (
 	"strconv"
 )
 
-// // Globals for Info Section
-// var infoSection, infoSectionExist bool
-// var infoSectionStart, infoSectionEnd, bufferLength int
-
 func getClient(proxy bool) *http.Client {
 	// Proxy through burp
 	// Define the Burp Suite proxy URL
@@ -48,8 +44,9 @@ func getClient(proxy bool) *http.Client {
 func main() {
 	PORT := 6881
 	PEER_ID := "jtbtjtbtjtbtjtbtjtbt"
+	PROXY := false
 
-	torrentFile := readTorrent("./test_torrents/httpsinglefile.torrent")
+	torrentFile := readTorrent("./test_torrents/ubuntu.torrent")
 
 	// Check file is dict
 	if torrentFile[0] != 'd' {
@@ -81,13 +78,14 @@ func main() {
 	// log.Println(pieceHashes)
 	log.Printf("%x", pieceHashes[0])
 
-	client := getClient(true)
+	client := getClient(PROXY)
 
 	// Inital Http Request
 	baseURL := torrent.Announce
 	params := url.Values{}
 	params.Set("peer_id", PEER_ID)
-	params.Set("info_hash", hashURLEncode(infoHash))
+	// Does not work here as double url encodes %
+	params.Set("info_hash", string(infoHash[:]))
 	params.Set("port", strconv.Itoa(PORT))
 	params.Set("left", strconv.Itoa(torrent.Info.Length))
 	params.Set("downloaded", strconv.Itoa(0))

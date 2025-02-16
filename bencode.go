@@ -80,11 +80,7 @@ func getDict(reader *bufio.Reader, infoSection *InfoSection) map[string]interfac
 		if nextByte == 'e' {
 
 			if thisLevelInfoSection {
-				// 		// log.Println(reader.Buffered())
-				// 		infoSectionEnd = bufferLength - reader.Buffered()
-				// 		infoSection = false
 				infoSection.BufferedWhenEnd = reader.Buffered()
-				// infoSection.On = false
 			}
 			_, _ = reader.ReadByte()
 
@@ -103,8 +99,6 @@ func getDict(reader *bufio.Reader, infoSection *InfoSection) map[string]interfac
 		if key == "info" {
 			infoSection.BufferedWhenStart = reader.Buffered()
 			thisLevelInfoSection = true
-			// infoSectionStart = reader.Buffered()
-			// infoSection, infoSectionExist = true, true
 		}
 
 		// get value

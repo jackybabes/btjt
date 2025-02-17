@@ -2,12 +2,39 @@ package main
 
 import (
 	"crypto/sha1"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
 	"net/url"
 	"strconv"
 )
+
+func parsePeerBytesIntoPeerList(peerBytes []byte) []Peer {
+	var peerList []Peer
+	peerNum := 0
+
+	if len(peerList)%6 != 0 {
+		log.Panicln("peer list not divisible by 6")
+	}
+
+	for range len(peerBytes) / 6 {
+		offset := 6 * peerNum
+
+		p := Peer{}
+
+		p.IP = fmt.Sprintf("%v.%v.%v.%v", peerBytes[0+offset], peerBytes[1+offset], peerBytes[2+offset], peerBytes[3+offset])
+
+		decimalPort := binary.BigEndian.Uint16(peerBytes[4+offset : 6+offset])
+
+		p.Port = int(decimalPort)
+
+		peerList = append(peerList, p)
+		peerNum++
+
+	}
+	return peerList
+}
 
 func main() {
 	PORT := 6881
@@ -64,7 +91,7 @@ func main() {
 	// Does not work here as double url encodes %
 	params.Set("info_hash", string(infoHash[:]))
 	params.Set("port", strconv.Itoa(PORT))
-	params.Set("left", strconv.Itoa(torrent.Info.Length))
+	params.Set("left", strconv.Itoa(torrentLengthTotal))
 	params.Set("downloaded", strconv.Itoa(0))
 	params.Set("uploaded", strconv.Itoa(0))
 	params.Set("compact", strconv.Itoa(1))
@@ -84,12 +111,16 @@ func main() {
 	body, _ := io.ReadAll(resp.Body)
 	log.Printf("Response: %v...", string(body[:40]))
 
-	x, _ := bencode_decode([]byte(body))
-
-	_ = x
+	trackerResponseDecoded, _ := bencode_decode([]byte(body))
 
 	// assuming compact ipv4 stuff
 	// https://www.bittorrent.org/beps/bep_0007.html
+
+	trackerResponseUnpacked := UnpackTrackerResponse(trackerResponseDecoded)
+
+	peerList := parsePeerBytesIntoPeerList(trackerResponseUnpacked.Peers)
+
+	_ = peerList
 
 	log.Println("Fin")
 

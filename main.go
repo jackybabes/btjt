@@ -33,7 +33,16 @@ func main() {
 
 	// Pieces Calc -  broken
 	// When multiple files, length is store in file dict
-	numberOfPieces := (torrent.Info.Length / torrent.Info.PieceLength) + 1
+	var torrentLengthTotal int
+	if len(torrent.Info.Files) > 0 {
+		// calc length
+		for _, file := range torrent.Info.Files {
+			torrentLengthTotal += file.Length
+		}
+	} else {
+		torrentLengthTotal = torrent.Info.Length
+	}
+	numberOfPieces := (torrentLengthTotal / torrent.Info.PieceLength) + 1
 	log.Printf("number of pieces: %v", numberOfPieces)
 
 	// Create slice of hashes
@@ -73,12 +82,15 @@ func main() {
 	// Read and print response body
 	log.Println(resp.Status)
 	body, _ := io.ReadAll(resp.Body)
-	fmt.Println("Response:", string(body))
+	log.Printf("Response: %v...", string(body[:40]))
 
 	x, _ := bencode_decode([]byte(body))
 
-	// why has it go to be ipv6
 	_ = x
+
+	// assuming compact ipv4 stuff
+	// https://www.bittorrent.org/beps/bep_0007.html
+
 	log.Println("Fin")
 
 }

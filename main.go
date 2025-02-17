@@ -61,6 +61,7 @@ func main() {
 	params.Set("compact", strconv.Itoa(1))
 
 	finalURL := baseURL + "?" + params.Encode()
+	log.Println(finalURL)
 
 	resp, err := client.Get(finalURL)
 	if err != nil {

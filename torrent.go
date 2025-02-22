@@ -51,6 +51,8 @@ func NewTorrent(fp string) Torrent {
 	}
 
 	t.unMarshalBencodedData()
+	t.calcLength()
+	t.pieceHashes()
 
 	return t
 }

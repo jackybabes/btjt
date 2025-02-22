@@ -11,8 +11,6 @@ func main() {
 	TORRENT_FILE_PATH := "./test_torrents/http.torrent"
 
 	torrent := NewTorrent(TORRENT_FILE_PATH)
-	torrent.calcLength()
-	torrent.pieceHashes()
 
 	log.Println(torrent)
 

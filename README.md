@@ -5,6 +5,7 @@
 - parse the interface better
 - create seperate bencode decoder for torrent file and messages from tracker
 - create list of peers from tracker annouce message
+- Refactor code to Structs
 
 ## Problems
 

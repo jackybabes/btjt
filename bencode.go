@@ -40,7 +40,7 @@ func getInt(reader *bufio.Reader) int {
 	return i
 }
 
-func getList(reader *bufio.Reader, infoSection *InfoSection) []interface{} {
+func getList(reader *bufio.Reader, infoSection *KeyIndex) []interface{} {
 	var listData []interface{}
 
 	_, _ = reader.ReadByte()
@@ -68,23 +68,22 @@ func getList(reader *bufio.Reader, infoSection *InfoSection) []interface{} {
 	}
 }
 
-func getDict(reader *bufio.Reader, infoSection *InfoSection) map[string]interface{} {
+func getDict(reader *bufio.Reader, keyIndex *KeyIndex) map[string]interface{} {
 	dictData := make(map[string]interface{})
 	_, _ = reader.ReadByte()
-	var thisLevelInfoSection bool
+	// KEY CHECEK VAR
+	var thisLevelKeyIndex bool
 	for {
 		// get key
 		nextBytes, _ := reader.Peek(1)
 		nextByte := nextBytes[0]
 
 		if nextByte == 'e' {
-
 			// if thisLevelInfoSection {
 			// 	infoSection.BufferedWhenEnd = reader.Buffered()
 			// 	thisLevelInfoSection = false
 			// }
 			_, _ = reader.ReadByte()
-
 			return dictData
 		}
 
@@ -97,9 +96,12 @@ func getDict(reader *bufio.Reader, infoSection *InfoSection) map[string]interfac
 			log.Fatalln("key must be string")
 		}
 
-		if key == "info" {
-			infoSection.BufferedWhenStart = reader.Buffered()
-			thisLevelInfoSection = true
+		// KEY CHECK START
+		if keyIndex.Enabled {
+			if key == keyIndex.Key {
+				keyIndex.BufferedWhenStart = reader.Buffered()
+				thisLevelKeyIndex = true
+			}
 		}
 
 		// get value
@@ -114,39 +116,52 @@ func getDict(reader *bufio.Reader, infoSection *InfoSection) map[string]interfac
 			value = getInt(reader)
 		case 'l':
 			// ListType
-			value = getList(reader, infoSection)
+			value = getList(reader, keyIndex)
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			// ByteType
 			value = getBytes(reader)
 		case 'd':
 			// DictType
-			value = getDict(reader, infoSection)
+			value = getDict(reader, keyIndex)
 		}
+
 		dictData[key] = value
-		if thisLevelInfoSection {
-			infoSection.BufferedWhenEnd = reader.Buffered()
-			thisLevelInfoSection = false
+		// KEY CHECK END
+		if thisLevelKeyIndex {
+			keyIndex.BufferedWhenEnd = reader.Buffered()
+			thisLevelKeyIndex = false
 		}
 	}
 }
 
-type InfoSection struct {
+type KeyIndex struct {
+	Enabled           bool
+	Key               string
 	BufferedWhenStart int
 	BufferedWhenEnd   int
 }
 
-func bencode_decode(data []byte) (map[string]interface{}, []byte) {
-	// Put data into reader
+func bencode_decode(data []byte) map[string]interface{} {
 	reader := bufio.NewReaderSize(bytes.NewReader(data), len(data))
-
 	var decodedData map[string]interface{}
 
-	infoSection := InfoSection{}
+	keyIndex := KeyIndex{Enabled: false}
 
-	decodedData = getDict(reader, &infoSection)
+	decodedData = getDict(reader, &keyIndex)
 
-	infoSectionBytes := data[len(data)-infoSection.BufferedWhenStart : len(data)-infoSection.BufferedWhenEnd]
+	return decodedData
 
-	return decodedData, infoSectionBytes
+}
 
+func bencode_decode_byte_data_of_key(data []byte, key string) (map[string]interface{}, []byte) {
+	reader := bufio.NewReaderSize(bytes.NewReader(data), len(data))
+	var decodedData map[string]interface{}
+
+	keyIndex := KeyIndex{Key: key, Enabled: true}
+
+	decodedData = getDict(reader, &keyIndex)
+
+	keyValue := data[len(data)-keyIndex.BufferedWhenStart : len(data)-keyIndex.BufferedWhenEnd]
+
+	return decodedData, keyValue
 }

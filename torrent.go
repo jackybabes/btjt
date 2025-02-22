@@ -12,6 +12,10 @@ type Torrent struct {
 	FilePath       string
 	InfoHash       [20]byte
 	debugInterface map[string]interface{}
+	multiFile      bool
+	downloadLength int
+	numberOfPieces int
+	PieceHashes    [][]byte
 }
 
 type TorrentData struct {
@@ -71,6 +75,32 @@ func (t *Torrent) unMarshalBencodedData() {
 
 	populateStruct(&t.Data, interfaceMap)
 	t.debugInterface = interfaceMap
+}
+
+func (t *Torrent) calcLength() {
+
+	// Check multi File
+	if len(t.Data.Info.Files) > 0 {
+		t.multiFile = true
+		for _, file := range t.Data.Info.Files {
+			t.downloadLength += file.Length
+		}
+	} else {
+		t.multiFile = false
+		t.downloadLength = t.Data.Info.Length
+	}
+	t.numberOfPieces = (t.downloadLength / t.Data.Info.Piece_Length) + 1
+
+}
+
+func (t *Torrent) pieceHashes() {
+	// // Create slice of hashes
+	pieceBuffer := t.Data.Info.Pieces
+	for range t.numberOfPieces {
+		t.PieceHashes = append(t.PieceHashes, pieceBuffer[:20])
+		pieceBuffer = pieceBuffer[20:]
+	}
+
 }
 
 // func loadTorrentIntoStruct(data map[string]interface{}) TorrentData {

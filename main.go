@@ -11,32 +11,10 @@ func main() {
 	TORRENT_FILE_PATH := "./test_torrents/http.torrent"
 
 	torrent := NewTorrent(TORRENT_FILE_PATH)
+	torrent.calcLength()
+	torrent.pieceHashes()
 
 	log.Println(torrent)
-
-	// // Pieces Calc -  broken
-	// // When multiple files, length is store in file dict
-	// var torrentLengthTotal int
-	// if len(torrent.Info.Files) > 0 {
-	// 	// calc length
-	// 	for _, file := range torrent.Info.Files {
-	// 		torrentLengthTotal += file.Length
-	// 	}
-	// } else {
-	// 	torrentLengthTotal = torrent.Info.Length
-	// }
-	// numberOfPieces := (torrentLengthTotal / torrent.Info.PieceLength) + 1
-	// log.Printf("number of pieces: %v", numberOfPieces)
-
-	// // Create slice of hashes
-	// var pieceHashes [][]byte
-	// pieceBuffer := torrent.Info.Pieces
-	// for range numberOfPieces {
-	// 	pieceHashes = append(pieceHashes, pieceBuffer[:20])
-	// 	pieceBuffer = pieceBuffer[20:]
-	// }
-	// // log.Println(pieceHashes)
-	// log.Printf("%x", pieceHashes[0])
 
 	// client := getClient(PROXY)
 

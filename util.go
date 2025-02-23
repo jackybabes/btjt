@@ -47,7 +47,7 @@ func getClient(proxy bool) *http.Client {
 }
 
 // populateStruct takes a pointer to a struct and fills it with values from a map.
-func populateStruct(targetStruct interface{}, data map[string]interface{}) {
+func populateStruct(targetStruct any, data map[string]any) {
 	// Get the value and type of the struct
 	structValue := reflect.ValueOf(targetStruct).Elem()
 	structType := structValue.Type()
@@ -80,7 +80,7 @@ func fieldNameToKey(name string) string {
 }
 
 // setFieldValue recursively sets a struct field value, handling slices and structs
-func setFieldValue(field reflect.Value, value interface{}) {
+func setFieldValue(field reflect.Value, value any) {
 	if !field.CanSet() {
 		log.Printf("Cannot set field: %v\n", field)
 		return
@@ -106,7 +106,7 @@ func setFieldValue(field reflect.Value, value interface{}) {
 
 	case reflect.Struct:
 		// Recursively populate nested struct
-		if v, ok := value.(map[string]interface{}); ok {
+		if v, ok := value.(map[string]any); ok {
 			populateStruct(field.Addr().Interface(), v)
 		}
 
@@ -116,7 +116,7 @@ func setFieldValue(field reflect.Value, value interface{}) {
 }
 
 // handleSlice processes slices recursively, including slices of structs and slices of slices
-func handleSlice(field reflect.Value, value interface{}) {
+func handleSlice(field reflect.Value, value any) {
 	elemType := field.Type().Elem()
 
 	// Special case for []byte
@@ -133,7 +133,7 @@ func handleSlice(field reflect.Value, value interface{}) {
 
 	switch elemType.Kind() {
 	case reflect.String:
-		if v, ok := value.([]interface{}); ok {
+		if v, ok := value.([]any); ok {
 			for _, item := range v {
 				if str, ok := item.([]byte); ok {
 					newSlice = reflect.Append(newSlice, reflect.ValueOf(string(str)))
@@ -144,7 +144,7 @@ func handleSlice(field reflect.Value, value interface{}) {
 		}
 
 	case reflect.Int:
-		if v, ok := value.([]interface{}); ok {
+		if v, ok := value.([]any); ok {
 			for _, item := range v {
 				if num, ok := item.(int); ok {
 					newSlice = reflect.Append(newSlice, reflect.ValueOf(num))
@@ -153,9 +153,9 @@ func handleSlice(field reflect.Value, value interface{}) {
 		}
 
 	case reflect.Struct:
-		if v, ok := value.([]interface{}); ok {
+		if v, ok := value.([]any); ok {
 			for _, item := range v {
-				if itemMap, ok := item.(map[string]interface{}); ok {
+				if itemMap, ok := item.(map[string]any); ok {
 					newStruct := reflect.New(elemType).Elem()
 					populateStruct(newStruct.Addr().Interface(), itemMap)
 					newSlice = reflect.Append(newSlice, newStruct)
@@ -164,13 +164,13 @@ func handleSlice(field reflect.Value, value interface{}) {
 		}
 
 	case reflect.Slice: // Handle [][]string and [][]byte
-		if v, ok := value.([]interface{}); ok {
+		if v, ok := value.([]any); ok {
 			for _, sublist := range v {
 				subSlice := reflect.MakeSlice(elemType, 0, 0)
 
 				// Handle [][]string
 				if elemType.Elem().Kind() == reflect.String {
-					if strList, ok := sublist.([]interface{}); ok {
+					if strList, ok := sublist.([]any); ok {
 						for _, item := range strList {
 							if str, ok := item.([]byte); ok {
 								subSlice = reflect.Append(subSlice, reflect.ValueOf(string(str)))
@@ -183,7 +183,7 @@ func handleSlice(field reflect.Value, value interface{}) {
 
 				// Handle [][]byte
 				if elemType.Elem().Kind() == reflect.Uint8 {
-					if byteList, ok := sublist.([]interface{}); ok {
+					if byteList, ok := sublist.([]any); ok {
 						byteSlice := make([]byte, len(byteList))
 						for i, item := range byteList {
 							if num, ok := item.(uint8); ok {

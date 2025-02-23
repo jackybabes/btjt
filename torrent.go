@@ -11,7 +11,7 @@ type Torrent struct {
 	BencodedData   []byte
 	FilePath       string
 	InfoHash       [20]byte
-	debugInterface map[string]interface{}
+	debugInterface map[string]any
 	multiFile      bool
 	downloadLength int
 	numberOfPieces int

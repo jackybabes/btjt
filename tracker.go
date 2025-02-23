@@ -14,7 +14,7 @@ type Tracker struct {
 	Compact        int
 	Alive          bool
 	BencodedData   []byte
-	debugInterface map[string]interface{}
+	debugInterface map[string]any
 	CompactData    TrackerResponseCompact
 }
 
@@ -96,15 +96,16 @@ func (tracker *Tracker) DecodeAnnounceResponse() {
 		populateStruct(&tracker.CompactData, tracker.debugInterface)
 	}
 	if tracker.Compact == 0 {
-		log.Fatalln("Tracker Reponse not compact. Not supported yet.")
+		tracker.Alive = false
+		log.Println("Tracker Reponse not compact. Not supported yet.")
 	}
 }
 
-func checkCompact(m interface{}) int {
+func checkCompact(m any) int {
 	switch m.(type) {
 	case []byte:
 		return 1
-	case map[string]interface{}:
+	case map[string]any:
 		return 0
 	default:
 		// log.Println(v)

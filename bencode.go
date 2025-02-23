@@ -40,8 +40,8 @@ func getInt(reader *bufio.Reader) int {
 	return i
 }
 
-func getList(reader *bufio.Reader, infoSection *KeyIndex) []interface{} {
-	var listData []interface{}
+func getList(reader *bufio.Reader, infoSection *KeyIndex) []any {
+	var listData []any
 
 	_, _ = reader.ReadByte()
 	for {
@@ -68,8 +68,8 @@ func getList(reader *bufio.Reader, infoSection *KeyIndex) []interface{} {
 	}
 }
 
-func getDict(reader *bufio.Reader, keyIndex *KeyIndex) map[string]interface{} {
-	dictData := make(map[string]interface{})
+func getDict(reader *bufio.Reader, keyIndex *KeyIndex) map[string]any {
+	dictData := make(map[string]any)
 	_, _ = reader.ReadByte()
 	// KEY CHECEK VAR
 	var thisLevelKeyIndex bool
@@ -108,7 +108,7 @@ func getDict(reader *bufio.Reader, keyIndex *KeyIndex) map[string]interface{} {
 		nextBytes, _ = reader.Peek(1)
 		nextByte = nextBytes[0]
 
-		var value interface{}
+		var value any
 
 		switch nextByte {
 		case 'i':
@@ -141,9 +141,9 @@ type KeyIndex struct {
 	BufferedWhenEnd   int
 }
 
-func bencode_decode(data []byte) map[string]interface{} {
+func bencode_decode(data []byte) map[string]any {
 	reader := bufio.NewReaderSize(bytes.NewReader(data), len(data))
-	var decodedData map[string]interface{}
+	var decodedData map[string]any
 
 	keyIndex := KeyIndex{Enabled: false}
 
@@ -153,9 +153,9 @@ func bencode_decode(data []byte) map[string]interface{} {
 
 }
 
-func bencode_decode_byte_data_of_key(data []byte, key string) (map[string]interface{}, []byte) {
+func bencode_decode_byte_data_of_key(data []byte, key string) (map[string]any, []byte) {
 	reader := bufio.NewReaderSize(bytes.NewReader(data), len(data))
-	var decodedData map[string]interface{}
+	var decodedData map[string]any
 
 	keyIndex := KeyIndex{Key: key, Enabled: true}
 

@@ -15,6 +15,26 @@ type Tracker struct {
 	Alive          bool
 	BencodedData   []byte
 	debugInterface map[string]interface{}
+	CompactData    TrackerResponseCompact
+}
+
+// type TrackerResponseExpanded struct {
+// 	FailureReason  string
+// 	WarningMessage string
+// 	Interval       int
+// 	MinInterval    int
+// 	TrackerID      []byte
+// 	Complete       int
+// 	Incomplete     int
+// 	PeersDict      []Peer
+// 	PeersBinary    []byte
+// }
+
+type TrackerResponseCompact struct {
+	Interval   int
+	Complete   int
+	Incomplete int
+	Peers      []byte
 }
 
 func NewTracker(url string, tier int) *Tracker {
@@ -63,17 +83,25 @@ func (tracker *Tracker) Announce(t *Torrent) {
 func (tracker *Tracker) DecodeAnnounceResponse() {
 	tracker.debugInterface = bencode_decode(tracker.BencodedData)
 
-	if tracker.Compact = checkCompact(tracker.debugInterface); tracker.Compact < 0 {
+	announceResponseCompactness := checkCompact(tracker.debugInterface["peers"])
+	if announceResponseCompactness < 0 {
 		log.Println("Could not determine compactness, marking tracker Dead")
 		tracker.Alive = false
 		return
 	}
+	tracker.Compact = announceResponseCompactness
 
-	log.Println(len(tracker.debugInterface))
+	// decode compact repsonse
+	if tracker.Compact == 1 {
+		populateStruct(&tracker.CompactData, tracker.debugInterface)
+	}
+	if tracker.Compact == 0 {
+		log.Fatalln("Tracker Reponse not compact. Not supported yet.")
+	}
 }
 
-func checkCompact(m map[string]interface{}) int {
-	switch m["peers"].(type) {
+func checkCompact(m interface{}) int {
+	switch m.(type) {
 	case []byte:
 		return 1
 	case map[string]interface{}:

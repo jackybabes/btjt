@@ -10,6 +10,12 @@ import (
 	"time"
 )
 
+type Peer struct {
+	PeerID []byte
+	IP     string
+	Port   int
+}
+
 func parsePeerBytesIntoPeerList(peerBytes []byte) []Peer {
 	var peerList []Peer
 	peerNum := 0

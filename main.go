@@ -4,15 +4,26 @@ import (
 	"log"
 )
 
+const (
+	TORRENT_FILE_PATH = "./test_torrents/http.torrent"
+	PORT              = 6881
+	PEER_ID           = "jtbtjtbtjtbtjtbtjtbt"
+	PROXY             = false
+	DEFAULT_COMPACT   = 1
+)
+
 func main() {
-	// PORT := 6881
-	// PEER_ID := "jtbtjtbtjtbtjtbtjtbt"
-	// PROXY := false
-	TORRENT_FILE_PATH := "./test_torrents/http.torrent"
 
 	torrent := NewTorrent(TORRENT_FILE_PATH)
 
-	log.Println(torrent)
+	torrent.createTrackers()
+
+	for _, tracker := range torrent.Trackers {
+		tracker.Announce(&torrent)
+		if tracker.Alive {
+			tracker.DecodeAnnounceResponse()
+		}
+	}
 
 	// client := getClient(PROXY)
 

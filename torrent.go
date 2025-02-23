@@ -16,6 +16,10 @@ type Torrent struct {
 	downloadLength int
 	numberOfPieces int
 	PieceHashes    [][]byte
+	Trackers       []*Tracker
+	Uploaded       int
+	Downloaded     int
+	Left           int
 }
 
 type TorrentData struct {
@@ -93,6 +97,8 @@ func (t *Torrent) calcLength() {
 	}
 	t.numberOfPieces = (t.downloadLength / t.Data.Info.Piece_Length) + 1
 
+	t.Left = t.downloadLength
+
 }
 
 func (t *Torrent) pieceHashes() {
@@ -102,5 +108,20 @@ func (t *Torrent) pieceHashes() {
 		t.PieceHashes = append(t.PieceHashes, pieceBuffer[:20])
 		pieceBuffer = pieceBuffer[20:]
 	}
+}
 
+func (t *Torrent) createTrackers() {
+	// does the annouce list contain the top level tracker always?
+	if len(t.Data.Announce__List) == 0 {
+		if t.Data.Announce == "" {
+			log.Panicln("No trackers")
+		}
+		t.Trackers = append(t.Trackers, NewTracker(t.Data.Announce, 0))
+	} else {
+		for tier, trackerList := range t.Data.Announce__List {
+			for _, tracker := range trackerList {
+				t.Trackers = append(t.Trackers, NewTracker(tracker, tier))
+			}
+		}
+	}
 }

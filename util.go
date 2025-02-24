@@ -5,16 +5,10 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
 )
-
-func readTorrent(filename string) []byte {
-	data, _ := os.ReadFile(filename)
-	return data
-}
 
 func bytesToInt(b []byte) int {
 	s := string(b)

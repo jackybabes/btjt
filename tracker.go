@@ -16,6 +16,8 @@ type Tracker struct {
 	BencodedData   []byte
 	debugInterface map[string]any
 	CompactData    TrackerResponseCompact
+	Interval       int
+	Peers          []Peer
 }
 
 // type TrackerResponseExpanded struct {
@@ -42,7 +44,6 @@ func NewTracker(url string, tier int) *Tracker {
 }
 
 func (tracker *Tracker) Announce(t *Torrent) {
-
 	log.Printf("URL: %v", tracker.URL)
 
 	baseURL := tracker.URL
@@ -68,7 +69,7 @@ func (tracker *Tracker) Announce(t *Torrent) {
 
 	// Read and print response body
 	// log.Println(resp.Status)
-	if resp.Status != "200 OK" {
+	if resp.StatusCode != http.StatusOK {
 		log.Println("Status Error:", resp.Status)
 		tracker.Alive = false
 		return
@@ -108,8 +109,33 @@ func checkCompact(m any) int {
 	case map[string]any:
 		return 0
 	default:
-		// log.Println(v)
 		return -1
-
 	}
+}
+
+func (tracker *Tracker) GetInterval() {
+	// Parse Compact
+	if tracker.Compact == 1 {
+		tracker.Interval = tracker.CompactData.Interval
+	}
+	// Parse Expanded
+	// if tracker.Compact == 0 {
+
+	// }
+
+}
+
+func (tracker *Tracker) CreatePeerList() {
+	// Parse Compact Peers
+	if tracker.Compact == 1 {
+		peerBytesList := ConvertTo6ByteSlices(tracker.CompactData.Peers)
+		for _, peerBytes := range peerBytesList {
+			tracker.Peers = append(tracker.Peers, NewPeerCompactIpv4(peerBytes))
+		}
+	}
+	// Parse Expanded Peers
+	// if tracker.Compact == 0 {
+
+	// }
+
 }

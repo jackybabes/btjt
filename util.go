@@ -22,6 +22,21 @@ func bytesToInt(b []byte) int {
 	return i
 }
 
+func ConvertTo6ByteSlices(input []byte) [][6]byte {
+	if len(input)%6 != 0 {
+		log.Panicln("Input length is not a multiple of 6")
+	}
+
+	var result [][6]byte
+	for i := 0; i < len(input); i += 6 {
+		var chunk [6]byte
+		copy(chunk[:], input[i:i+6])
+		result = append(result, chunk)
+	}
+
+	return result
+}
+
 func getClient(proxy bool) *http.Client {
 	// Proxy through burp
 	// Define the Burp Suite proxy URL

@@ -16,7 +16,7 @@ type Torrent struct {
 	downloadLength int
 	numberOfPieces int
 	PieceHashes    [][]byte
-	Trackers       []*Tracker
+	Trackers       []Tracker
 	Uploaded       int
 	Downloaded     int
 	Left           int
@@ -124,5 +124,17 @@ func (t *Torrent) createTrackers() {
 				t.Trackers = append(t.Trackers, NewTracker(tracker, tier))
 			}
 		}
+	}
+}
+
+func (t *Torrent) initialiseTrackers() {
+
+	t.createTrackers()
+
+	for i := range t.Trackers {
+
+		tracker := &t.Trackers[i]
+		tracker.InitialiseTracker(t)
+
 	}
 }

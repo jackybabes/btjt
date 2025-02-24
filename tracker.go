@@ -39,8 +39,21 @@ type TrackerResponseCompact struct {
 	Peers      []byte
 }
 
-func NewTracker(url string, tier int) *Tracker {
-	return &Tracker{URL: url, Tier: tier, Compact: DEFAULT_COMPACT}
+func NewTracker(url string, tier int) Tracker {
+	return Tracker{URL: url, Tier: tier, Compact: DEFAULT_COMPACT}
+}
+
+func (tracker *Tracker) InitialiseTracker(t *Torrent) {
+	tracker.Announce(t)
+	if tracker.Alive {
+		tracker.DecodeAnnounceResponse()
+	}
+	if tracker.Alive {
+		tracker.GetInterval()
+	}
+	if tracker.Alive {
+		tracker.CreatePeerList()
+	}
 }
 
 func (tracker *Tracker) Announce(t *Torrent) {

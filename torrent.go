@@ -95,7 +95,8 @@ func (t *Torrent) calcLength() {
 		t.multiFile = false
 		t.downloadLength = t.Data.Info.Length
 	}
-	t.numberOfPieces = (t.downloadLength / t.Data.Info.Piece_Length) + 1
+	// t.numberOfPieces = (t.downloadLength / t.Data.Info.Piece_Length) + 1
+	t.numberOfPieces = (t.downloadLength + t.Data.Info.Piece_Length - 1) / t.Data.Info.Piece_Length
 
 	t.Left = t.downloadLength
 

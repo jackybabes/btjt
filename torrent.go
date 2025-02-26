@@ -20,6 +20,7 @@ type Torrent struct {
 	Uploaded       int
 	Downloaded     int
 	Left           int
+	Peers          map[string]*Peer
 }
 
 type TorrentData struct {
@@ -57,6 +58,8 @@ func NewTorrent(fp string) Torrent {
 	t.unMarshalBencodedData()
 	t.calcLength()
 	t.pieceHashes()
+
+	t.Peers = make(map[string]*Peer)
 
 	return t
 }
@@ -128,13 +131,9 @@ func (t *Torrent) createTrackers() {
 }
 
 func (t *Torrent) initialiseTrackers() {
-
 	t.createTrackers()
-
 	for i := range t.Trackers {
-
 		tracker := &t.Trackers[i]
 		tracker.InitialiseTracker(t)
-
 	}
 }

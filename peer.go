@@ -1,16 +1,21 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"net"
+	"time"
 )
 
 type Peer struct {
-	PeerID []byte
-	IP     net.IP
-	Port   int
-	Alive  bool
+	PeerID     []byte
+	Name       string
+	IP         net.IP
+	Port       int
+	Alive      bool
+	Connection net.Conn
 }
 
 func NewPeerCompactIpv4(b [6]byte) Peer {
@@ -18,54 +23,35 @@ func NewPeerCompactIpv4(b [6]byte) Peer {
 	ip := net.ParseIP(ipstr)
 	port := int(binary.BigEndian.Uint16(b[4:]))
 
-	p := Peer{IP: ip, Port: port}
+	peerstr := fmt.Sprintf("%v:%v", ipstr, port)
+
+	peerID := make([]byte, 20)
+	rand.Read(peerID)
+
+	p := Peer{IP: ip, Port: port, Name: peerstr, PeerID: peerID}
 	return p
 }
 
-// func parsePeerBytesIntoPeerList(peerBytes []byte) []Peer {
-// 	var peerList []Peer
-// 	peerNum := 0
+func (p *Peer) Init() {
+	p.CreateConnection()
 
-// 	if len(peerList)%6 != 0 {
-// 		log.Panicln("peer list not divisible by 6")
-// 	}
+	defer p.Connection.Close()
+}
 
-// 	for range len(peerBytes) / 6 {
-// 		offset := 6 * peerNum
+func (p *Peer) CreateConnection() {
 
-// 		p := Peer{}
+	peerAddress := fmt.Sprintf("%v:%v", p.IP.String(), p.Port)
+	conn, err := net.DialTimeout("tcp", peerAddress, time.Second)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	p.Connection = conn
+	log.Printf("connected to %v", peerAddress)
 
-// 		p.IP = fmt.Sprintf("%v.%v.%v.%v", peerBytes[0+offset], peerBytes[1+offset], peerBytes[2+offset], peerBytes[3+offset])
+}
 
-// 		decimalPort := binary.BigEndian.Uint16(peerBytes[4+offset : 6+offset])
-
-// 		p.Port = int(decimalPort)
-
-// 		peerList = append(peerList, p)
-// 		peerNum++
-
-// 	}
-// 	return peerList
-// }
-
-// func sendHandshakeToPeer(p Peer, infoHash [20]byte) []byte {
-// 	// peerAddress := "188.212.112.163:32767"
-
-// 	peerAddress := fmt.Sprintf("%v:%v", p.IP, p.Port)
-// 	log.Println(peerAddress)
-
-// 	conn, err := net.DialTimeout("tcp", peerAddress, time.Second)
-// 	if err != nil {
-// 		log.Println(err)
-// 		return nil
-// 	}
-// 	defer conn.Close()
-
-// 	log.Printf("connected to %v", peerAddress)
-
-// 	peerID := make([]byte, 20)
-// 	rand.Read(peerID)
-
+// func (p *Peer) SendHandshake() {
 // 	// length of the protocol string (BitTorrent protocol) which is 19 (1 byte)
 // 	handshakeLength := []byte{19}
 // 	// the string BitTorrent protocol (19 bytes)
@@ -75,31 +61,31 @@ func NewPeerCompactIpv4(b [6]byte) Peer {
 // 	// sha1 infohash (20 bytes) (NOT the hexadecimal representation, which is 40 bytes long)
 // 	handshakeInfoHash := infoHash[:]
 // 	// peer id (20 bytes) (generate 20 random byte values)
-// 	handshakePeerID := peerID
+// 	handshakePeerID := p.PeerID
 
 // 	handshake := slices.Concat(handshakeLength, handshakeProtocolString, handshakeNullBytes, handshakeInfoHash, handshakePeerID)
 
 // 	log.Printf("Handshake len : %v", len(handshake))
 
-// 	_, err = conn.Write(handshake)
+// 	_, err := p.Connection.Write(handshake)
 // 	if err != nil {
 // 		log.Println(err)
-// 		return nil
+// 		return
 // 	}
 
 // 	log.Println("Handshake sent")
 
 // 	response := make([]byte, 68)
 
-// 	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-// 	n, err := conn.Read(response)
+// 	p.Connection.SetReadDeadline(time.Now().Add(3 * time.Second))
+// 	n, err := p.Connection.Read(response)
 // 	if err != nil {
 // 		log.Println(err)
-// 		return nil
+// 		return
 // 	}
 
 // 	log.Println(n)
 
 // 	log.Printf("%x", response[68-20:])
-// 	return response
+// 	return
 // }

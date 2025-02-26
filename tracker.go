@@ -54,6 +54,14 @@ func (tracker *Tracker) InitialiseTracker(t *Torrent) {
 	if tracker.Alive {
 		tracker.CreatePeerList()
 	}
+	// add peers to torrent Peers map
+
+	for i := range tracker.Peers {
+		peer := &tracker.Peers[i]
+		if _, exists := t.Peers[peer.Name]; !exists {
+			t.Peers[peer.Name] = peer
+		}
+	}
 }
 
 func (tracker *Tracker) Announce(t *Torrent) {

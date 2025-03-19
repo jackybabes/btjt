@@ -43,6 +43,14 @@ func (p *Peer) Init(infoHash [20]byte) {
 	// Set peer address string
 	p.peerAddress = fmt.Sprintf("%v:%v", p.IP.String(), p.Port)
 
+	// Create connection and store it in the struct
+	conn := p.CreateConnection()
+	if conn == nil {
+		p.Alive = false
+		return
+	}
+	p.Connection = conn // Store the connection in the struct instead of closing it
+
 	// Create Handshake message
 	p.createHandshakeMessage(infoHash)
 	p.SendHandshake()
@@ -50,6 +58,100 @@ func (p *Peer) Init(infoHash [20]byte) {
 	// p.CreateConnection()
 
 	// defer p.Connection.Close()
+}
+
+func (p *Peer) sendInterested() {
+	messageLen := []byte{0, 0, 0, 1}
+	messageID := []byte{2}
+	message := slices.Concat(messageLen, messageID)
+	log.Printf("Sending interested: %v", message)
+	_, err := p.Connection.Write(message)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func (p *Peer) receiveUnchoke() {
+	response := make([]byte, 5)
+	_, err := p.Connection.Read(response)
+	if err != nil {
+		log.Println(err)
+		p.Alive = false
+		p.Connection.Close()
+		return
+	}
+	log.Printf("Received unchoke: %v", response)
+}
+
+func (p *Peer) sendRequest() {
+	// default block size
+	blockSize := 16 * 1024
+	// ask for first piece
+	pieceIndexInt := 0
+	// ask for first block of the piece
+	blockOffsetInt := 0
+
+	messageID := []byte{6}
+
+	pieceIndex := make([]byte, 4)
+	binary.BigEndian.PutUint32(pieceIndex, uint32(pieceIndexInt))
+
+	blockOffset := make([]byte, 4)
+	binary.BigEndian.PutUint32(blockOffset, uint32(blockOffsetInt))
+
+	blockLength := make([]byte, 4)
+	binary.BigEndian.PutUint32(blockLength, uint32(blockSize))
+
+	messageLen := []byte{0, 0, 0, 13}
+
+	message := slices.Concat(messageLen, messageID, pieceIndex, blockOffset, blockLength)
+
+	log.Printf("Sending request: %v", message)
+	_, err := p.Connection.Write(message)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func (p *Peer) receivePiece() {
+	log.Printf("Receiving piece")
+
+	// First read the message length (4 bytes)
+	lengthBuf := make([]byte, 4)
+	_, err := p.Connection.Read(lengthBuf)
+	if err != nil {
+		log.Println("Failed to read piece message length:", err)
+		p.Alive = false
+		p.Connection.Close()
+		return
+	}
+
+	messageLength := binary.BigEndian.Uint32(lengthBuf)
+	log.Printf("Message length: %d", messageLength)
+
+	// Read the actual message
+	response := make([]byte, messageLength)
+	_, err = p.Connection.Read(response)
+	if err != nil {
+		log.Println("Failed to read piece message:", err)
+		p.Alive = false
+		p.Connection.Close()
+		return
+	}
+
+	if response[0] != 7 {
+		log.Printf("Expected piece message (ID=7), got message ID: %d", response[0])
+		return
+	}
+
+	// Parse piece message
+	pieceIndex := binary.BigEndian.Uint32(response[1:5])
+	blockOffset := binary.BigEndian.Uint32(response[5:9])
+	blockData := response[9:]
+
+	log.Printf("Piece index: %d, Block offset: %d, Block data length: %d",
+		pieceIndex, blockOffset, len(blockData))
+	log.Printf("First few bytes of block data: %v", blockData[:min(10, len(blockData))])
 }
 
 func (p *Peer) createHandshakeMessage(infoHash [20]byte) {
@@ -65,15 +167,7 @@ func (p *Peer) createHandshakeMessage(infoHash [20]byte) {
 }
 
 func (p *Peer) SendHandshake() {
-	// Create connection and store it in the struct
-	conn := p.CreateConnection()
-	if conn == nil {
-		p.Alive = false
-		return
-	}
-	p.Connection = conn // Store the connection in the struct instead of closing it
-
-	_, err := conn.Write(p.handshakeMsg)
+	_, err := p.Connection.Write(p.handshakeMsg)
 	if err != nil {
 		log.Println(err)
 		p.Alive = false
@@ -85,8 +179,8 @@ func (p *Peer) SendHandshake() {
 
 	response := make([]byte, 68)
 
-	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-	_, err = conn.Read(response)
+	// p.Connection.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_, err = p.Connection.Read(response)
 	if err != nil {
 		log.Println(err)
 		p.Alive = false
@@ -94,14 +188,14 @@ func (p *Peer) SendHandshake() {
 		return
 	}
 
-	// Remove the deadline after handshake
-	conn.SetReadDeadline(time.Time{})
+	// // Remove the deadline after handshake
+	// p.Connection.SetReadDeadline(time.Time{})
 
 	log.Printf("Handshake response: %v", response)
 
 	// Read bitfield message
 	lengthBuf := make([]byte, 4)
-	_, err = conn.Read(lengthBuf)
+	_, err = p.Connection.Read(lengthBuf)
 	if err != nil {
 		log.Println("Failed to read bitfield length:", err)
 		p.Alive = false
@@ -113,7 +207,7 @@ func (p *Peer) SendHandshake() {
 
 	// First byte is message ID (5 for bitfield)
 	messageBuf := make([]byte, p.BitfieldLength)
-	_, err = conn.Read(messageBuf)
+	_, err = p.Connection.Read(messageBuf)
 	if err != nil {
 		log.Println("Failed to read bitfield:", err)
 		p.Alive = false
@@ -142,45 +236,6 @@ func (p *Peer) CreateConnection() net.Conn {
 	log.Printf("connected to %v", p.peerAddress)
 	return conn
 }
-
-// func (p *Peer) SendHandshake() {
-// 	// length of the protocol string (BitTorrent protocol) which is 19 (1 byte)
-// 	handshakeLength := []byte{19}
-// 	// the string BitTorrent protocol (19 bytes)
-// 	handshakeProtocolString := []byte("BitTorrent protocol")
-// 	// eight reserved bytes, which are all set to zero (8 bytes)
-// 	handshakeNullBytes := make([]byte, 8)
-// 	// sha1 infohash (20 bytes) (NOT the hexadecimal representation, which is 40 bytes long)
-// 	handshakeInfoHash := infoHash[:]
-// 	// peer id (20 bytes) (generate 20 random byte values)
-// 	handshakePeerID := p.PeerID
-
-// 	handshake := slices.Concat(handshakeLength, handshakeProtocolString, handshakeNullBytes, handshakeInfoHash, handshakePeerID)
-
-// 	log.Printf("Handshake len : %v", len(handshake))
-
-// 	_, err := p.Connection.Write(handshake)
-// 	if err != nil {
-// 		log.Println(err)
-// 		return
-// 	}
-
-// 	log.Println("Handshake sent")
-
-// 	response := make([]byte, 68)
-
-// 	p.Connection.SetReadDeadline(time.Now().Add(3 * time.Second))
-// 	n, err := p.Connection.Read(response)
-// 	if err != nil {
-// 		log.Println(err)
-// 		return
-// 	}
-
-// 	log.Println(n)
-
-// 	log.Printf("%x", response[68-20:])
-// 	return
-// }
 
 func (p *Peer) Close() {
 	if p.Connection != nil {

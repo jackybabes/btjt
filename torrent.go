@@ -21,6 +21,7 @@ type Torrent struct {
 	Downloaded     int
 	Left           int
 	Peers          map[string]*Peer
+	Download       *Download
 }
 
 type TorrentData struct {
@@ -60,7 +61,7 @@ func NewTorrent(fp string) Torrent {
 	t.pieceHashes()
 
 	t.Peers = make(map[string]*Peer)
-
+	t.Download = NewDownload(t.Data.Info.Piece_Length, t.downloadLength, t.PieceHashes)
 	return t
 }
 

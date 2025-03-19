@@ -83,27 +83,26 @@ func (p *Peer) receiveUnchoke() {
 	log.Printf("Received unchoke: %v", response)
 }
 
-func (p *Peer) sendRequest() {
-	// default block size
-	blockSize := 16 * 1024
-	// ask for first piece
-	pieceIndexInt := 0
-	// ask for first block of the piece
-	blockOffsetInt := 0
+func (p *Peer) sendRequest(peiceIndexInt int, blockOffsetInt int) {
+	// message length
+	messageLen := []byte{0, 0, 0, 13}
 
+	// message ID
 	messageID := []byte{6}
 
+	// piece index
 	pieceIndex := make([]byte, 4)
-	binary.BigEndian.PutUint32(pieceIndex, uint32(pieceIndexInt))
+	binary.BigEndian.PutUint32(pieceIndex, uint32(peiceIndexInt))
 
+	// block offset
 	blockOffset := make([]byte, 4)
 	binary.BigEndian.PutUint32(blockOffset, uint32(blockOffsetInt))
 
+	// block length
 	blockLength := make([]byte, 4)
-	binary.BigEndian.PutUint32(blockLength, uint32(blockSize))
+	binary.BigEndian.PutUint32(blockLength, uint32(BLOCK_SIZE))
 
-	messageLen := []byte{0, 0, 0, 13}
-
+	// message
 	message := slices.Concat(messageLen, messageID, pieceIndex, blockOffset, blockLength)
 
 	log.Printf("Sending request: %v", message)

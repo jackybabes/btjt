@@ -53,6 +53,15 @@ func main() {
 	}
 	log.Printf("Remaining alive peers: %d", len(torrent.Peers))
 
+	for _, peer := range torrent.Peers {
+		peer.sendInterested()
+		peer.receiveUnchoke()
+		peer.sendRequest()
+		peer.receivePiece()
+
+		// break
+	}
+
 	log.Println("Fin")
 
 }

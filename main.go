@@ -11,6 +11,7 @@ const (
 	PEER_ID           = "jtbtjtbtjtbtjtbtjtbt"
 	PROXY             = false
 	DEFAULT_COMPACT   = 1
+	BLOCK_SIZE        = 16 * 1024
 )
 
 func main() {

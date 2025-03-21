@@ -55,20 +55,24 @@ func main() {
 	log.Printf("Remaining alive peers: %d", len(torrent.Peers))
 
 	for _, peer := range torrent.Peers {
-		peer.sendInterested()
-		peer.receiveUnchoke()
-		peer.sendRequest()
-		peer.receivePiece()
+		err := peer.SendInterested()
+		if err != nil {
+			log.Println(err)
+		}
 
-		// break
+		// if !peer.Choked {
+		// 	peer.SendRequest(0, 0, 16*1024)
+		// }
+		// temp := torrent.Download.GetFirstPiece()
+
+		// for _, block := range temp.Data {
+		// 	peer.sendRequest(0, block.Offset)
+		// 	peer.receivePiece(&block)
+		// }
+
+		break
 	}
 
 	log.Println("Fin")
 
 }
-
-// // handshake
-
-// handshakePeer := peerList[0]
-
-// sendHandshakeToPeer(handshakePeer, infoHash)

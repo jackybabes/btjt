@@ -18,7 +18,6 @@ type Peer struct {
 	Alive          bool
 	Connection     net.Conn
 	peerAddress    string
-	handshakeMsg   []byte
 	Bitfield       []byte
 	BitfieldLength uint32
 	Choked         bool
@@ -58,28 +57,26 @@ func (p *Peer) Init(infoHash [20]byte) {
 	p.Connection = conn // Store the connection in the struct instead of closing it
 
 	// Create Handshake message
-	p.createHandshakeMessage(infoHash)
-	p.SendHandshake()
+	handshake := createPeerHandshakeMessage(infoHash, p.PeerID)
+	p.SendHandshake(handshake)
 
 	// p.CreateConnection()
 
 	// defer p.Connection.Close()
 }
 
-func (p *Peer) createHandshakeMessage(infoHash [20]byte) {
+func createPeerHandshakeMessage(infoHash [20]byte, peerID []byte) []byte {
 	handshakeLength := []byte{19}
 	handshakeProtocolString := []byte("BitTorrent protocol")
 	handshakeNullBytes := make([]byte, 8)
 	handshakeInfoHash := infoHash[:]
-	handshakePeerID := p.PeerID
-
+	handshakePeerID := peerID
 	handshake := slices.Concat(handshakeLength, handshakeProtocolString, handshakeNullBytes, handshakeInfoHash, handshakePeerID)
-
-	p.handshakeMsg = handshake
+	return handshake
 }
 
-func (p *Peer) SendHandshake() {
-	_, err := p.Connection.Write(p.handshakeMsg)
+func (p *Peer) SendHandshake(handshakeMessage []byte) {
+	_, err := p.Connection.Write(handshakeMessage)
 	if err != nil {
 		log.Println(err)
 		p.Alive = false
@@ -137,6 +134,28 @@ func (p *Peer) SendHandshake() {
 	p.Bitfield = messageBuf[1:] // The actual bitfield data starts after the message ID
 	log.Printf("Received bitfield of length %d: %v", len(p.Bitfield), p.Bitfield)
 	p.Alive = true // Mark as alive if we got here successfully
+}
+
+func (p *Peer) SendInterested() error {
+	p.SendMessage(Message{Type: INTERESTED})
+	msg, err := p.ReceiveNextMessage()
+	if err != nil {
+		log.Println(err)
+		p.Alive = false
+		p.Connection.Close()
+		return err
+	}
+	switch msg.Type {
+	case UNCHOKE:
+		log.Println("Peer unchoked")
+		p.Choked = false
+		return nil
+	case CHOKE:
+		p.Choked = true
+		return fmt.Errorf("peer choked")
+	default:
+		return fmt.Errorf("expected interested message, got message ID: %d", msg.Type)
+	}
 }
 
 func (p *Peer) CreateConnection() net.Conn {

@@ -148,15 +148,6 @@ func (p *Peer) ReceiveMessage() (*Message, error) {
 	return msg, nil
 }
 
-// Helper functions for common messages
-func (p *Peer) SendInterested() error {
-	return p.SendMessage(Message{Type: INTERESTED})
-}
-
-func (p *Peer) SendUnchoke() error {
-	return p.SendMessage(Message{Type: UNCHOKE})
-}
-
 func (p *Peer) SendRequest(pieceIndex, blockOffset, blockLength uint32) error {
 	payload := make([]byte, 12)
 	binary.BigEndian.PutUint32(payload[0:4], pieceIndex)

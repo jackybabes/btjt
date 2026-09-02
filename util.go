@@ -28,6 +28,19 @@ func ConvertTo6ByteSlices(input []byte) [][6]byte {
 	return result
 }
 
+// ConvertTo18ByteSlices splits a compact IPv6 peer list (BEP 7) into 18-byte
+// entries (16 bytes address + 2 bytes port). A trailing partial entry is
+// ignored rather than fatal.
+func ConvertTo18ByteSlices(input []byte) [][18]byte {
+	var result [][18]byte
+	for i := 0; i+18 <= len(input); i += 18 {
+		var chunk [18]byte
+		copy(chunk[:], input[i:i+18])
+		result = append(result, chunk)
+	}
+	return result
+}
+
 // populateStruct takes a pointer to a struct and fills it with values from a map.
 func populateStruct(targetStruct any, data map[string]any) {
 	// Get the value and type of the struct

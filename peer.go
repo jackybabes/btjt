@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"slices"
+	"strconv"
 	"time"
 )
 
@@ -42,6 +43,26 @@ func NewPeerCompactIpv4(b [6]byte) Peer {
 	p.PeerID = peerID
 
 	p.peerAddress = fmt.Sprintf("%v:%v", p.IP.String(), p.Port)
+	p.Choked = true
+
+	return p
+}
+
+// NewPeerCompactIpv6 builds a Peer from an 18-byte BEP 7 compact entry:
+// 16 bytes of IPv6 address followed by a 2-byte big-endian port.
+func NewPeerCompactIpv6(b [18]byte) Peer {
+	p := Peer{}
+
+	p.IP = make(net.IP, net.IPv6len)
+	copy(p.IP, b[0:16])
+	p.Port = int(binary.BigEndian.Uint16(b[16:]))
+	p.peerAddress = net.JoinHostPort(p.IP.String(), strconv.Itoa(p.Port))
+	p.Name = p.peerAddress
+
+	peerID := make([]byte, 20)
+	rand.Read(peerID)
+	p.PeerID = peerID
+
 	p.Choked = true
 
 	return p

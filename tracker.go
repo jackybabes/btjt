@@ -86,6 +86,8 @@ func (tracker *Tracker) Announce(t *Torrent) {
 	params.Set("downloaded", strconv.Itoa(t.Downloaded))
 	params.Set("uploaded", strconv.Itoa(t.Uploaded))
 	params.Set("compact", strconv.Itoa(tracker.Compact))
+	params.Set("numwant", "100")
+	params.Set("event", "started")
 
 	finalURL := baseURL + "?" + params.Encode()
 	// log.Println(finalURL)
@@ -108,7 +110,7 @@ func (tracker *Tracker) Announce(t *Torrent) {
 
 	tracker.Alive = true
 	body, _ := io.ReadAll(resp.Body)
-	log.Printf("Response: %v...", string(body[:40]))
+	log.Printf("Response: %v...", string(body[:min(40, len(body))]))
 	tracker.BencodedData = body
 }
 
@@ -133,6 +135,10 @@ func (tracker *Tracker) DecodeAnnounceResponse() {
 	}
 	tracker.Compact = announceResponseCompactness
 
+	log.Printf("tracker %s: complete=%v incomplete=%v peers=%dB peers6=%dB",
+		tracker.URL, tracker.debugInterface["complete"], tracker.debugInterface["incomplete"],
+		byteLen(tracker.debugInterface["peers"]), byteLen(tracker.debugInterface["peers6"]))
+
 	// decode compact repsonse
 	if tracker.Compact == 1 {
 		populateStruct(&tracker.CompactData, tracker.debugInterface)
@@ -154,6 +160,14 @@ func bencodeString(v any) string {
 	default:
 		return ""
 	}
+}
+
+// byteLen reports the length of a decoded bencode string value, or 0.
+func byteLen(v any) int {
+	if b, ok := v.([]byte); ok {
+		return len(b)
+	}
+	return 0
 }
 
 func checkCompact(m any) int {
@@ -180,16 +194,21 @@ func (tracker *Tracker) GetInterval() {
 }
 
 func (tracker *Tracker) CreatePeerList() {
-	// Parse Compact Peers
-	if tracker.Compact == 1 {
-		peerBytesList := ConvertTo6ByteSlices(tracker.CompactData.Peers)
-		for _, peerBytes := range peerBytesList {
-			tracker.Peers = append(tracker.Peers, NewPeerCompactIpv4(peerBytes))
+	// Compact IPv4 peers: "peers" as a string of 6-byte entries.
+	if tracker.Compact == 1 && len(tracker.CompactData.Peers)%6 == 0 {
+		for _, b := range ConvertTo6ByteSlices(tracker.CompactData.Peers) {
+			tracker.Peers = append(tracker.Peers, NewPeerCompactIpv4(b))
 		}
 	}
-	// Parse Expanded Peers
-	// if tracker.Compact == 0 {
 
-	// }
+	// Compact IPv6 peers (BEP 7): "peers6" as a string of 18-byte entries.
+	// Dual-stack trackers return most of their peers here when we announce
+	// over IPv6.
+	if raw, ok := tracker.debugInterface["peers6"].([]byte); ok {
+		for _, b := range ConvertTo18ByteSlices(raw) {
+			tracker.Peers = append(tracker.Peers, NewPeerCompactIpv6(b))
+		}
+	}
 
+	log.Printf("tracker %s: parsed %d peers", tracker.URL, len(tracker.Peers))
 }

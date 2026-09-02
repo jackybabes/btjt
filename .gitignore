@@ -26,3 +26,6 @@ go.work.sum
 
 __debug_*
 .DS_Store
+
+# compiled binary
+/btjt

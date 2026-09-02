@@ -1,14 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"slices"
 	"time"
 )
+
+// Number of block requests kept outstanding per peer.
+const pipelineDepth = 5
 
 type Peer struct {
 	PeerID         []byte
@@ -21,10 +26,10 @@ type Peer struct {
 	Bitfield       []byte
 	BitfieldLength uint32
 	Choked         bool
+	pending        int
 }
 
 func NewPeerCompactIpv4(b [6]byte) Peer {
-	// Create the Peer instance at the beginning
 	p := Peer{}
 
 	ipstr := fmt.Sprintf("%v.%v.%v.%v", b[0], b[1], b[2], b[3])
@@ -36,33 +41,45 @@ func NewPeerCompactIpv4(b [6]byte) Peer {
 	rand.Read(peerID)
 	p.PeerID = peerID
 
-	// Set peer address string
 	p.peerAddress = fmt.Sprintf("%v:%v", p.IP.String(), p.Port)
-
 	p.Choked = true
 
 	return p
 }
 
-// func NewPeerCompactIpv6(b [16]byte) Peer {
-
+// Init dials the peer and performs the BitTorrent handshake. On success
+// p.Alive is set to true and p.Connection is ready for message exchange.
 func (p *Peer) Init(infoHash [20]byte) {
-
-	// Create connection and store it in the struct
 	conn := p.CreateConnection()
 	if conn == nil {
 		p.Alive = false
 		return
 	}
-	p.Connection = conn // Store the connection in the struct instead of closing it
+	p.Connection = conn
 
-	// Create Handshake message
 	handshake := createPeerHandshakeMessage(infoHash, p.PeerID)
-	p.SendHandshake(handshake)
+	if _, err := conn.Write(handshake); err != nil {
+		log.Printf("%s: handshake write: %v", p.Name, err)
+		p.Close()
+		return
+	}
 
-	// p.CreateConnection()
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	resp := make([]byte, 68)
+	if _, err := io.ReadFull(conn, resp); err != nil {
+		log.Printf("%s: handshake read: %v", p.Name, err)
+		p.Close()
+		return
+	}
+	conn.SetReadDeadline(time.Time{})
 
-	// defer p.Connection.Close()
+	if !bytes.Equal(resp[28:48], infoHash[:]) {
+		log.Printf("%s: infohash mismatch", p.Name)
+		p.Close()
+		return
+	}
+
+	p.Alive = true
 }
 
 func createPeerHandshakeMessage(infoHash [20]byte, peerID []byte) []byte {
@@ -71,100 +88,80 @@ func createPeerHandshakeMessage(infoHash [20]byte, peerID []byte) []byte {
 	handshakeNullBytes := make([]byte, 8)
 	handshakeInfoHash := infoHash[:]
 	handshakePeerID := peerID
-	handshake := slices.Concat(handshakeLength, handshakeProtocolString, handshakeNullBytes, handshakeInfoHash, handshakePeerID)
-	return handshake
+	return slices.Concat(handshakeLength, handshakeProtocolString, handshakeNullBytes, handshakeInfoHash, handshakePeerID)
 }
 
-func (p *Peer) SendHandshake(handshakeMessage []byte) {
-	_, err := p.Connection.Write(handshakeMessage)
-	if err != nil {
-		log.Println(err)
-		p.Alive = false
-		p.Connection.Close()
+// Download runs the peer's message loop until the torrent is complete or the
+// connection drops.
+func (p *Peer) Download(d *Download) {
+	defer p.Close()
+
+	if err := p.SendMessage(Message{Type: INTERESTED}); err != nil {
 		return
 	}
 
-	log.Println("Handshake sent")
+	for {
+		if d.IsComplete() {
+			return
+		}
 
-	response := make([]byte, 68)
+		p.Connection.SetReadDeadline(time.Now().Add(30 * time.Second))
+		msg, err := p.ReceiveMessage()
+		if err != nil {
+			return
+		}
+		if msg == nil {
+			continue // keep-alive
+		}
 
-	// p.Connection.SetReadDeadline(time.Now().Add(3 * time.Second))
-	_, err = p.Connection.Read(response)
-	if err != nil {
-		log.Println(err)
-		p.Alive = false
-		p.Connection.Close()
-		return
-	}
+		switch msg.Type {
+		case BITFIELD:
+			p.Bitfield = msg.Payload
+		case HAVE:
+			if len(msg.Payload) >= 4 {
+				p.SetPiece(int(binary.BigEndian.Uint32(msg.Payload[:4])))
+			}
+		case UNCHOKE:
+			p.Choked = false
+		case CHOKE:
+			p.Choked = true
+		case PIECE:
+			if len(msg.Payload) < 8 {
+				break
+			}
+			pieceIndex := int(binary.BigEndian.Uint32(msg.Payload[0:4]))
+			begin := int(binary.BigEndian.Uint32(msg.Payload[4:8]))
+			if p.pending > 0 {
+				p.pending--
+			}
+			complete, err := d.SaveBlock(pieceIndex, begin, msg.Payload[8:])
+			if err != nil {
+				log.Printf("%s: %v", p.Name, err)
+			}
+			if complete {
+				return
+			}
+		}
 
-	// // Remove the deadline after handshake
-	// p.Connection.SetReadDeadline(time.Time{})
-
-	log.Printf("Handshake response: %v", response)
-
-	// Read bitfield message
-	lengthBuf := make([]byte, 4)
-	_, err = p.Connection.Read(lengthBuf)
-	if err != nil {
-		log.Println("Failed to read bitfield length:", err)
-		p.Alive = false
-		p.Connection.Close()
-		return
-	}
-
-	p.BitfieldLength = binary.BigEndian.Uint32(lengthBuf)
-
-	// First byte is message ID (5 for bitfield)
-	messageBuf := make([]byte, p.BitfieldLength)
-	_, err = p.Connection.Read(messageBuf)
-	if err != nil {
-		log.Println("Failed to read bitfield:", err)
-		p.Alive = false
-		p.Connection.Close()
-		return
-	}
-
-	if messageBuf[0] != 5 { // 5 is the ID for bitfield messages
-		log.Println("Expected bitfield message, got message ID:", messageBuf[0])
-		p.Alive = false
-		p.Connection.Close()
-		return
-	}
-
-	p.Bitfield = messageBuf[1:] // The actual bitfield data starts after the message ID
-	log.Printf("Received bitfield of length %d: %v", len(p.Bitfield), p.Bitfield)
-	p.Alive = true // Mark as alive if we got here successfully
-}
-
-func (p *Peer) SendInterested() error {
-	p.SendMessage(Message{Type: INTERESTED})
-	msg, err := p.ReceiveNextMessage()
-	if err != nil {
-		log.Println(err)
-		p.Alive = false
-		p.Connection.Close()
-		return err
-	}
-	switch msg.Type {
-	case UNCHOKE:
-		log.Println("Peer unchoked")
-		p.Choked = false
-		return nil
-	case CHOKE:
-		p.Choked = true
-		return fmt.Errorf("peer choked")
-	default:
-		return fmt.Errorf("expected interested message, got message ID: %d", msg.Type)
+		// Keep the request pipeline topped up.
+		for !p.Choked && p.pending < pipelineDepth {
+			pieceIndex, block := d.NextRequest(p)
+			if block == nil {
+				break
+			}
+			if err := p.SendRequest(uint32(pieceIndex), uint32(block.Offset), uint32(block.Length)); err != nil {
+				return
+			}
+			p.pending++
+		}
 	}
 }
 
 func (p *Peer) CreateConnection() net.Conn {
-	conn, err := net.DialTimeout("tcp", p.peerAddress, time.Second)
+	conn, err := net.DialTimeout("tcp", p.peerAddress, 3*time.Second)
 	if err != nil {
-		log.Println(err)
 		return nil
 	}
-	log.Printf("connected to %v", p.peerAddress)
 	return conn
 }
 
@@ -174,4 +171,29 @@ func (p *Peer) Close() {
 		p.Connection = nil
 	}
 	p.Alive = false
+}
+
+// HasPiece reports whether the peer advertises piece pieceIndex in its bitfield.
+func (p *Peer) HasPiece(pieceIndex int) bool {
+	byteIndex := pieceIndex / 8
+	bitIndex := 7 - (pieceIndex % 8) // bits count from the MSB
+
+	if byteIndex < 0 || byteIndex >= len(p.Bitfield) {
+		return false
+	}
+	return (p.Bitfield[byteIndex] & (1 << bitIndex)) != 0
+}
+
+// SetPiece marks a piece as available, growing the bitfield if necessary. Used
+// to apply HAVE messages received after the initial bitfield.
+func (p *Peer) SetPiece(pieceIndex int) {
+	byteIndex := pieceIndex / 8
+	bitIndex := 7 - (pieceIndex % 8)
+
+	if byteIndex >= len(p.Bitfield) {
+		grown := make([]byte, byteIndex+1)
+		copy(grown, p.Bitfield)
+		p.Bitfield = grown
+	}
+	p.Bitfield[byteIndex] |= 1 << bitIndex
 }

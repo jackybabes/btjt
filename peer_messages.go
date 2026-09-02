@@ -3,9 +3,13 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"slices"
 )
+
+// maxMessageSize guards against a desynced stream claiming an absurd length.
+const maxMessageSize = 1 << 20
 
 // peer messages
 // All non-keepalive messages start with a single byte which gives their type.
@@ -87,8 +91,6 @@ func (p *Peer) SendMessage(msg Message) error {
 		p.Connection.Close()
 		return err
 	}
-
-	log.Printf("Sent message type %s with length %d", messageTypeToString(msg.Type), length)
 	return nil
 }
 
@@ -111,13 +113,11 @@ func (p *Peer) ReceiveNextMessage() (*Message, error) {
 	}
 }
 
-// ReceiveMessage reads a message from the peer
+// ReceiveMessage reads one length-prefixed message from the peer. It returns
+// (nil, nil) for a keep-alive.
 func (p *Peer) ReceiveMessage() (*Message, error) {
-	// Read message length (4 bytes)
 	lengthBuf := make([]byte, 4)
-	_, err := p.Connection.Read(lengthBuf)
-	if err != nil {
-		log.Printf("Failed to read message length: %v", err)
+	if _, err := io.ReadFull(p.Connection, lengthBuf); err != nil {
 		p.Alive = false
 		p.Connection.Close()
 		return nil, err
@@ -125,27 +125,25 @@ func (p *Peer) ReceiveMessage() (*Message, error) {
 
 	length := binary.BigEndian.Uint32(lengthBuf)
 	if length == 0 {
-		// Keep-alive message
-		return nil, nil
+		return nil, nil // keep-alive
+	}
+	if length > maxMessageSize {
+		p.Alive = false
+		p.Connection.Close()
+		return nil, fmt.Errorf("peer sent oversized message: %d bytes", length)
 	}
 
-	// Read message type and payload
 	messageBuf := make([]byte, length)
-	_, err = p.Connection.Read(messageBuf)
-	if err != nil {
-		log.Printf("Failed to read message: %v", err)
+	if _, err := io.ReadFull(p.Connection, messageBuf); err != nil {
 		p.Alive = false
 		p.Connection.Close()
 		return nil, err
 	}
 
-	msg := &Message{
+	return &Message{
 		Type:    messageBuf[0],
 		Payload: messageBuf[1:],
-	}
-
-	log.Printf("Received message type %s with length %d", messageTypeToString(msg.Type), length)
-	return msg, nil
+	}, nil
 }
 
 func (p *Peer) SendRequest(pieceIndex, blockOffset, blockLength uint32) error {

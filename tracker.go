@@ -119,6 +119,12 @@ func (tracker *Tracker) DecodeAnnounceResponse() {
 
 	tracker.debugInterface = bencode_decode(tracker.BencodedData)
 
+	if reason, ok := tracker.debugInterface["failure reason"]; ok {
+		log.Printf("tracker %s refused: %s", tracker.URL, bencodeString(reason))
+		tracker.Alive = false
+		return
+	}
+
 	announceResponseCompactness := checkCompact(tracker.debugInterface["peers"])
 	if announceResponseCompactness < 0 {
 		log.Println("Could not determine compactness, marking tracker Dead")
@@ -134,6 +140,19 @@ func (tracker *Tracker) DecodeAnnounceResponse() {
 	if tracker.Compact == 0 {
 		tracker.Alive = false
 		log.Println("Tracker Reponse not compact. Not supported yet.")
+	}
+}
+
+// bencodeString renders a decoded bencode string value (this decoder yields
+// []byte) for logging.
+func bencodeString(v any) string {
+	switch s := v.(type) {
+	case []byte:
+		return string(s)
+	case string:
+		return s
+	default:
+		return ""
 	}
 }
 

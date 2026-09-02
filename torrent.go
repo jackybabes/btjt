@@ -134,6 +134,11 @@ func (t *Torrent) createTrackers() {
 func (t *Torrent) initialiseTrackers() {
 	t.createTrackers()
 	for i := range t.Trackers {
+		// Stop once we have plenty of peers - avoids waiting on a long tail
+		// of dead trackers (UDP ones cost a full timeout each).
+		if len(t.Peers) >= 50 {
+			break
+		}
 		tracker := &t.Trackers[i]
 		tracker.InitialiseTracker(t)
 	}

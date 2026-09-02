@@ -27,6 +27,7 @@ disk — single-file and multi-file torrents both work.
 
 - Bencode decoding, infohash, piece hashes
 - HTTP tracker announce, compact peer list
+- UDP tracker announce (BEP 15)
 - Peer handshake, bitfield / have tracking
 - Parallel per-peer download loops with a small request pipeline
 - Per-piece SHA-1 verification, retry on mismatch
@@ -34,9 +35,8 @@ disk — single-file and multi-file torrents both work.
 
 ## Not implemented
 
-- UDP trackers (only HTTP/HTTPS announce)
 - Non-compact (dictionary) tracker responses
-- IPv6 peers
+- IPv6 peers (and IPv6 UDP tracker announce)
 - Seeding / uploading, resume, DHT, magnet links
 - Rarest-first piece selection (pieces are picked in order)
 

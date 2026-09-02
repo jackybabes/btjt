@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 type Tracker struct {
@@ -64,8 +65,17 @@ func (tracker *Tracker) InitialiseTracker(t *Torrent) {
 	}
 }
 
+func (tracker *Tracker) isUDP() bool {
+	return strings.HasPrefix(tracker.URL, "udp://")
+}
+
 func (tracker *Tracker) Announce(t *Torrent) {
 	log.Printf("URL: %v", tracker.URL)
+
+	if tracker.isUDP() {
+		tracker.announceUDP(t)
+		return
+	}
 
 	baseURL := tracker.URL
 	params := url.Values{}
@@ -103,6 +113,10 @@ func (tracker *Tracker) Announce(t *Torrent) {
 }
 
 func (tracker *Tracker) DecodeAnnounceResponse() {
+	if tracker.isUDP() {
+		return // announceUDP already populated CompactData
+	}
+
 	tracker.debugInterface = bencode_decode(tracker.BencodedData)
 
 	announceResponseCompactness := checkCompact(tracker.debugInterface["peers"])
